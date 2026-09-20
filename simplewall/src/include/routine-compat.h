@@ -509,3 +509,20 @@ static inline VOID sw_compat_menu_setitemtext (
 
 #define _r_menu_setitemtext sw_compat_menu_setitemtext
 
+static inline NTSTATUS sw_compat_createprocess (
+	_In_opt_ PR_STRINGREF file_name,
+	_In_opt_ PR_STRINGREF command_line,
+	_In_opt_ PR_STRINGREF directory,
+	_In_ BOOLEAN is_wait
+)
+{
+	return _r_sys_createprocess (
+		file_name ? file_name->buffer : NULL,
+		command_line ? command_line->buffer : NULL,
+		directory ? directory->buffer : NULL,
+		is_wait
+	);
+}
+
+#define _r_sys_createprocess sw_compat_createprocess
+
