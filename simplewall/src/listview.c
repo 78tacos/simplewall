@@ -950,6 +950,41 @@ INT CALLBACK _app_listview_compare_callback (
 				}
 			}
 		}
+		else if ((listview_id >= IDC_APPS_PROFILE && listview_id <= IDC_APPS_UWP) && column_id == 2)
+		{
+			if (_app_getappinfobyhash (context1, INFO_LAST_CONNECT, &timestamp1, sizeof (LONG64)) &&
+				_app_getappinfobyhash (context2, INFO_LAST_CONNECT, &timestamp2, sizeof (LONG64)))
+			{
+				if (timestamp1 < timestamp2)
+				{
+					result = -1;
+				}
+				else if (timestamp1 > timestamp2)
+				{
+					result = 1;
+				}
+			}
+		}
+		else if ((listview_id >= IDC_APPS_PROFILE && listview_id <= IDC_APPS_UWP) && column_id == 3)
+		{
+			PR_STRING comment1 = NULL;
+			PR_STRING comment2 = NULL;
+
+			_app_getappinfobyhash (context1, INFO_COMMENT, &comment1, sizeof (PR_STRING));
+			_app_getappinfobyhash (context2, INFO_COMMENT, &comment2, sizeof (PR_STRING));
+
+			result = _r_str_compare (
+				comment1 ? comment1->buffer : L"",
+				comment2 ? comment2->buffer : L"",
+				TRUE
+			);
+
+			if (comment1)
+				_r_obj_dereference (comment1);
+
+			if (comment2)
+				_r_obj_dereference (comment2);
+		}
 		else if (listview_id == IDC_LOG && column_id == 1)
 		{
 			ptr_log1 = _app_getlogitem (context1);

@@ -64,6 +64,7 @@ typedef enum _ENUM_INFO_DATA
 	INFO_COMMENT,
 	INFO_HASH,
 	INFO_TIMESTAMP,
+	INFO_LAST_CONNECT,
 	INFO_TIMER,
 	INFO_LISTVIEW_ID,
 	INFO_DISABLE,
@@ -119,7 +120,13 @@ typedef enum _ENUM_INFO_DATA2
 	L"\"simplewall.exe -install -temp\" - enable filtering until reboot." SZ_CRLF \
 	L"\"simplewall.exe -install -silent\" - enable filtering without prompt." SZ_CRLF \
 	L"\"simplewall.exe -uninstall\" - remove all installed filters." SZ_CRLF \
-	L"\"simlewall.exe -help\" - show this message."
+	L"\"simplewall.exe -enable <path>\" - allow an app by path." SZ_CRLF \
+	L"\"simplewall.exe -disable <path>\" - disable an app by path." SZ_CRLF \
+	L"\"simplewall.exe -help\" - show this message."
+
+#define FILTER_TOGGLE_HOTKEY_ID 1
+#define FOLDER_ENUM_MAX_DEPTH 4
+#define FOLDER_ENUM_MAX_FILES 512
 
 #define DIVIDER_COPY L", "
 #define DIVIDER_APP L"|"
@@ -306,6 +313,7 @@ typedef struct _ITEM_APP
 	PTP_TIMER htimer;
 
 	LONG64 last_notify;
+	LONG64 last_connect;
 	LONG64 timestamp;
 	LONG64 timer;
 
@@ -321,7 +329,8 @@ typedef struct _ITEM_APP
 		ULONG is_haveerrors : 1;
 		ULONG is_enabled : 1;
 		ULONG is_silent : 1;
-		ULONG spare_bits : 28;
+		ULONG is_folder : 1;
+		ULONG spare_bits : 27;
 	} DUMMYSTRUCTNAME;
 } ITEM_APP, *PITEM_APP;
 

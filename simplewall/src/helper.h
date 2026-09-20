@@ -121,6 +121,43 @@ BOOLEAN _app_isappvalidpath (
 );
 
 _Ret_maybenull_
+PR_STRING _app_normalizeapppath (
+	_In_ PR_STRING path
+);
+
+BOOLEAN _app_isloopbackaddress (
+	_In_ ADDRESS_FAMILY af,
+	_In_ LPCVOID address
+);
+
+BOOLEAN _app_issignaturemicrosoft (
+	_In_opt_ PR_STRING signature
+);
+
+_Ret_maybenull_
+PITEM_APP _app_findfolderapp (
+	_In_ PR_STRING path
+);
+
+VOID _app_collectfolderapps (
+	_In_ PITEM_APP ptr_folder,
+	_Inout_opt_ PR_LIST rules
+);
+
+VOID _app_updateappconnect (
+	_In_ ULONG app_hash
+);
+
+VOID _app_hotkey_update (
+	_In_ HWND hwnd
+);
+
+BOOLEAN _app_command_setapppath (
+	_In_opt_ PR_STRING path,
+	_In_ BOOLEAN is_enable
+);
+
+_Ret_maybenull_
 PR_STRING _app_getappdisplayname (
 	_In_ PITEM_APP ptr_app,
 	_In_ BOOLEAN is_shortened

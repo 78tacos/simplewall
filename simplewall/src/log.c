@@ -1328,7 +1328,7 @@ VOID NTAPI _app_logthread (
 	PITEM_APP ptr_app = NULL;
 	PITEM_LOG ptr_log;
 	HWND hwnd;
-	BOOLEAN is_exludeallow, is_exludeblocklist, is_exludestealth, is_logenabled, is_loguienabled, is_notexist, is_notificationenabled, is_silent = FALSE;
+	BOOLEAN is_exludeallow, is_exludeblocklist, is_exludestealth, is_excludeloopback, is_logenabled, is_loguienabled, is_notexist, is_notificationenabled, is_silent = FALSE;
 
 	hwnd = _r_app_gethwnd ();
 
@@ -1339,11 +1339,33 @@ VOID NTAPI _app_logthread (
 
 	if (is_notexist)
 	{
+		PITEM_APP ptr_folder;
+
+		ptr_folder = ptr_log->path ? _app_findfolderapp (ptr_log->path) : NULL;
 		ptr_app = _app_addapplication (hwnd, DATA_UNKNOWN, ptr_log->path, NULL, NULL);
 
 		if (ptr_app)
 		{
 			ptr_log->app_hash = ptr_app->app_hash;
+
+			if (ptr_folder)
+			{
+				ptr_app->is_enabled = ptr_folder->is_enabled;
+				ptr_app->is_silent = ptr_folder->is_silent;
+
+				if (ptr_app->is_enabled && _wfp_isfiltersinstalled ())
+				{
+					PR_LIST rules;
+
+					rules = _r_obj_createlist (0x02, NULL);
+
+					_r_obj_addlistitem (rules, ptr_app, NULL);
+					_wfp_createappfilters (_wfp_getenginehandle (), rules, DBG_ARG, FALSE);
+					_r_obj_dereference (rules);
+				}
+
+				_r_obj_dereference (ptr_folder);
+			}
 
 			if (hwnd)
 				_app_listview_updateby_id (hwnd, ptr_app->type, PR_UPDATE_TYPE);
@@ -1361,8 +1383,12 @@ VOID NTAPI _app_logthread (
 	is_exludeallow = !(ptr_log->is_allow && _r_config_getboolean (L"IsExcludeClassifyAllow", TRUE, NULL));
 	is_exludestealth = !(ptr_log->is_system && _r_config_getboolean (L"IsExcludeStealth", TRUE, NULL));
 	is_exludeblocklist = !(ptr_log->is_blocklist && _r_config_getboolean (L"IsExcludeBlocklist", TRUE, NULL)) && !(ptr_log->is_custom && _r_config_getboolean (L"IsExcludeCustomRules", TRUE, NULL));
+	is_excludeloopback = !(ptr_log->is_loopback && _r_config_getboolean (L"IsHideLoopbackConnections", FALSE, NULL));
 
-	if ((is_logenabled || is_loguienabled || is_notificationenabled) && is_exludestealth && is_exludeallow)
+	if (ptr_log->app_hash)
+		_app_updateappconnect (ptr_log->app_hash);
+
+	if ((is_logenabled || is_loguienabled || is_notificationenabled) && is_exludestealth && is_exludeallow && is_excludeloopback)
 	{
 		// get network string
 		ptr_log->remote_addr_str = _app_formataddress (ptr_log->af, ptr_log->protocol, &ptr_log->remote_addr, 0, 0);

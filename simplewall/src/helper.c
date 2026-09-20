@@ -587,6 +587,434 @@ BOOLEAN _app_isappvalidpath (
 	return TRUE;
 }
 
+VOID _app_rewritescooppath (
+	_Inout_ PR_STRING_PTR path_ptr
+)
+{
+	PR_STRING path;
+	PR_STRING rebuilt;
+	R_STRINGREF prefix;
+	R_STRINGREF remainder;
+	ULONG_PTR apps_pos;
+	ULONG_PTR name_end;
+	R_STRINGREF version_sr;
+	R_STRINGREF current_sr = PR_STRINGREF_INIT (L"current");
+	ULONG_PTR version_end;
+	ULONG_PTR i;
+	ULONG_PTR length;
+
+	path = *path_ptr;
+
+	if (!path)
+		return;
+
+	apps_pos = _r_str_findstring2 (&path->sr, L"\\apps\\", TRUE);
+
+	if (apps_pos == SIZE_MAX)
+		return;
+
+	length = _r_str_getlength2 (&path->sr);
+	i = apps_pos + 6; // skip \apps\
+
+	if (i >= length)
+		return;
+
+	while (i < length && path->buffer[i] != L'\\')
+		i += 1;
+
+	if (i >= length)
+		return;
+
+	name_end = i;
+	i += 1;
+	version_end = i;
+
+	while (version_end < length && path->buffer[version_end] != L'\\')
+		version_end += 1;
+
+	if (version_end == i)
+		return;
+
+	_r_obj_initializestringref_ex (&version_sr, &path->buffer[i], (version_end - i) * sizeof (WCHAR));
+
+	if (_r_str_isequal2 (&version_sr, L"current", TRUE))
+		return;
+
+	_r_obj_initializestringref_ex (&prefix, path->buffer, (name_end + 1) * sizeof (WCHAR));
+
+	if (version_end < length)
+		_r_obj_initializestringref_ex (&remainder, &path->buffer[version_end], (length - version_end) * sizeof (WCHAR));
+	else
+		_r_obj_initializestringrefempty (&remainder);
+
+	rebuilt = _r_obj_concatstringrefs (3, &prefix, &current_sr, &remainder);
+
+	if (rebuilt && _r_fs_isexists (&rebuilt->sr))
+		_r_obj_movereference ((PVOID_PTR)path_ptr, rebuilt);
+	else if (rebuilt)
+		_r_obj_dereference (rebuilt);
+}
+
+_Ret_maybenull_
+PR_STRING _app_normalizeapppath (
+	_In_ PR_STRING path
+)
+{
+	WCHAR long_path[0x400];
+	PR_STRING result;
+	PR_STRING expanded = NULL;
+	PR_STRING full_path = NULL;
+	NTSTATUS status;
+
+	if (_r_obj_isstringempty2 (path))
+		return NULL;
+
+	// keep uwp sids, services, and device paths as-is
+	if (_r_str_isstartswith2 (&path->sr, L"S-1-", TRUE) ||
+		_r_str_isstartswith2 (&path->sr, L"\\device\\", TRUE) ||
+		_r_str_findchar (&path->sr, OBJ_NAME_PATH_SEPARATOR, FALSE) == SIZE_MAX)
+	{
+		return _r_obj_createstring2 (&path->sr);
+	}
+
+	result = _r_obj_createstring2 (&path->sr);
+
+	if (_r_str_findchar (&result->sr, L'%', FALSE) != SIZE_MAX)
+	{
+		status = _r_str_environmentexpandstring (&expanded, NULL, &result->sr);
+
+		if (NT_SUCCESS (status) && expanded)
+			_r_obj_movereference ((PVOID_PTR)&result, expanded);
+	}
+
+	_r_str_replacechar (&result->sr, L'/', L'\\');
+
+	if (_r_str_isstartswith2 (&result->sr, L"\\\\?\\UNC\\", TRUE))
+	{
+		expanded = _r_obj_concatstrings (2, L"\\\\", result->buffer + 8);
+		_r_obj_movereference ((PVOID_PTR)&result, expanded);
+	}
+	else if (_r_str_isstartswith2 (&result->sr, L"\\\\?\\", TRUE))
+	{
+		expanded = _r_obj_createstring (result->buffer + 4);
+		_r_obj_movereference ((PVOID_PTR)&result, expanded);
+	}
+
+	status = _r_path_getfullpath (result->buffer, &full_path);
+
+	if (NT_SUCCESS (status) && full_path)
+		_r_obj_movereference ((PVOID_PTR)&result, full_path);
+
+	if (GetLongPathNameW (result->buffer, long_path, RTL_NUMBER_OF (long_path)))
+		_r_obj_movereference ((PVOID_PTR)&result, _r_obj_createstring (long_path));
+
+	_app_rewritescooppath (&result);
+
+	if (_r_str_getlength2 (&result->sr) > 3)
+		_r_str_trimstring2 (&result->sr, L"\\", PR_TRIM_END_ONLY);
+
+	return result;
+}
+
+BOOLEAN _app_isloopbackaddress (
+	_In_ ADDRESS_FAMILY af,
+	_In_ LPCVOID address
+)
+{
+	PIN6_ADDR p6addr;
+	PIN_ADDR p4addr;
+
+	switch (af)
+	{
+		case AF_INET:
+		{
+			p4addr = (const PIN_ADDR)address;
+
+			return IN4_IS_ADDR_LOOPBACK (p4addr);
+		}
+
+		case AF_INET6:
+		{
+			p6addr = (const PIN6_ADDR)address;
+
+			return IN6_IS_ADDR_LOOPBACK (p6addr);
+		}
+
+		default:
+		{
+			return FALSE;
+		}
+	}
+}
+
+BOOLEAN _app_issignaturemicrosoft (
+	_In_opt_ PR_STRING signature
+)
+{
+	if (_r_obj_isstringempty (signature))
+		return FALSE;
+
+	return (_r_str_findstring2 (&signature->sr, L"Microsoft", TRUE) != SIZE_MAX);
+}
+
+BOOLEAN _app_isfolderprefix (
+	_In_ PR_STRING path,
+	_In_ PR_STRING folder
+)
+{
+	ULONG_PTR folder_length;
+	ULONG_PTR path_length;
+
+	if (_r_obj_isstringempty (path) || _r_obj_isstringempty (folder))
+		return FALSE;
+
+	if (!_r_str_isstartswith (&path->sr, &folder->sr, TRUE))
+		return FALSE;
+
+	folder_length = _r_str_getlength2 (&folder->sr);
+	path_length = _r_str_getlength2 (&path->sr);
+
+	if (path_length == folder_length)
+		return FALSE;
+
+	if (folder->buffer[folder_length - 1] == L'\\')
+		return TRUE;
+
+	return (path->buffer[folder_length] == L'\\');
+}
+
+_Ret_maybenull_
+PITEM_APP _app_findfolderapp (
+	_In_ PR_STRING path
+)
+{
+	PITEM_APP ptr_app = NULL;
+	PITEM_APP ptr_best = NULL;
+	ULONG_PTR enum_key = 0;
+	ULONG_PTR best_length = 0;
+
+	_r_queuedlock_acquireshared (&lock_apps);
+
+	while (_r_obj_enumhashtablepointer (apps_table, (PVOID_PTR)&ptr_app, NULL, &enum_key))
+	{
+		if (!ptr_app->is_folder || _r_obj_isstringempty (ptr_app->original_path))
+			continue;
+
+		if (!_app_isfolderprefix (path, ptr_app->original_path))
+			continue;
+
+		if (ptr_app->original_path->length > best_length)
+		{
+			best_length = ptr_app->original_path->length;
+			ptr_best = ptr_app;
+		}
+	}
+
+	if (ptr_best)
+		ptr_best = (PITEM_APP)_r_obj_reference (ptr_best);
+
+	_r_queuedlock_releaseshared (&lock_apps);
+
+	return ptr_best;
+}
+
+typedef struct _ITEM_FOLDER_ENUM
+{
+	PR_LIST files;
+	ULONG depth;
+	ULONG count;
+} ITEM_FOLDER_ENUM, *PITEM_FOLDER_ENUM;
+
+BOOLEAN NTAPI _app_enumfolderexes_callback (
+	_In_ PR_STRING path,
+	_In_ ULONG attributes,
+	_In_ PLARGE_INTEGER creation_time,
+	_In_ PLARGE_INTEGER lastwrite_time,
+	_In_opt_ PVOID context
+)
+{
+	ITEM_FOLDER_ENUM child_context;
+	PITEM_FOLDER_ENUM enum_context;
+
+	UNREFERENCED_PARAMETER (creation_time);
+	UNREFERENCED_PARAMETER (lastwrite_time);
+
+	enum_context = (PITEM_FOLDER_ENUM)context;
+
+	if (!enum_context || enum_context->count >= FOLDER_ENUM_MAX_FILES)
+		return FALSE;
+
+	if ((attributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
+	{
+		if (enum_context->depth + 1 <= FOLDER_ENUM_MAX_DEPTH)
+		{
+			child_context.files = enum_context->files;
+			child_context.depth = enum_context->depth + 1;
+			child_context.count = enum_context->count;
+
+			_r_fs_enumfiles (&path->sr, NULL, NULL, &_app_enumfolderexes_callback, &child_context);
+
+			enum_context->count = child_context.count;
+		}
+
+		return TRUE;
+	}
+
+	if (_r_str_isendsswith2 (&path->sr, L".exe", TRUE))
+	{
+		_r_obj_addlistitem (enum_context->files, _r_obj_reference (path), NULL);
+		enum_context->count += 1;
+	}
+
+	return TRUE;
+}
+
+VOID _app_collectfolderapps (
+	_In_ PITEM_APP ptr_folder,
+	_Inout_opt_ PR_LIST rules
+)
+{
+	ITEM_FOLDER_ENUM enum_context;
+	PITEM_APP ptr_app;
+	PR_STRING path;
+	PR_LIST files;
+	HWND hwnd;
+	ULONG_PTR i;
+
+	if (!ptr_folder->is_folder || _r_obj_isstringempty (ptr_folder->original_path))
+		return;
+
+	if (!_r_fs_isdirectory (&ptr_folder->original_path->sr))
+		return;
+
+	files = _r_obj_createlist (0x10, &_r_obj_dereference);
+
+	enum_context.files = files;
+	enum_context.depth = 0;
+	enum_context.count = 0;
+
+	_r_fs_enumfiles (&ptr_folder->original_path->sr, NULL, NULL, &_app_enumfolderexes_callback, &enum_context);
+
+	hwnd = _r_app_gethwnd ();
+
+	for (i = 0; i < _r_obj_getlistsize (files); i++)
+	{
+		path = (PR_STRING)_r_obj_getlistitem (files, i);
+
+		if (!path)
+			continue;
+
+		ptr_app = _app_addapplication (hwnd, DATA_UNKNOWN, path, NULL, NULL);
+
+		if (!ptr_app)
+			continue;
+
+		ptr_app->is_enabled = ptr_folder->is_enabled;
+		ptr_app->is_silent = ptr_folder->is_silent;
+
+		if (hwnd)
+			_app_listview_updateitemby_param (hwnd, ptr_app->app_hash, TRUE);
+
+		if (rules && _r_obj_findlistitem (rules, ptr_app) == SIZE_MAX)
+		{
+			_r_obj_addlistitem (rules, ptr_app, NULL);
+		}
+		else
+		{
+			_r_obj_dereference (ptr_app);
+		}
+	}
+
+	_r_obj_dereference (files);
+}
+
+VOID _app_updateappconnect (
+	_In_ ULONG app_hash
+)
+{
+	PITEM_APP ptr_app;
+	LONG64 timestamp;
+
+	ptr_app = _app_getappitem (app_hash);
+
+	if (!ptr_app)
+		return;
+
+	timestamp = _r_unixtime_now ();
+	ptr_app->last_connect = timestamp;
+
+	_r_obj_dereference (ptr_app);
+}
+
+VOID _app_hotkey_update (
+	_In_ HWND hwnd
+)
+{
+	UnregisterHotKey (hwnd, FILTER_TOGGLE_HOTKEY_ID);
+
+	if (_r_config_getboolean (L"IsFilterToggleHotkey", TRUE, NULL))
+		RegisterHotKey (hwnd, FILTER_TOGGLE_HOTKEY_ID, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, 'F');
+}
+
+BOOLEAN _app_command_setapppath (
+	_In_opt_ PR_STRING path,
+	_In_ BOOLEAN is_enable
+)
+{
+	PITEM_APP ptr_app;
+	PR_STRING normalized;
+	PR_LIST rules;
+	HANDLE hengine;
+
+	if (_r_obj_isstringempty (path))
+		return FALSE;
+
+	normalized = _app_normalizeapppath (path);
+
+	if (!normalized)
+		normalized = _r_obj_reference (path);
+
+	_app_profile_initialize ();
+	_app_profile_load (NULL, NULL);
+
+	ptr_app = _app_addapplication (NULL, DATA_UNKNOWN, normalized, NULL, NULL);
+
+	_r_obj_dereference (normalized);
+
+	if (!ptr_app)
+		return FALSE;
+
+	ptr_app->is_enabled = is_enable;
+
+	if (!is_enable)
+		ptr_app->is_silent = TRUE;
+
+	if (ptr_app->is_folder)
+		_app_collectfolderapps (ptr_app, NULL);
+
+	if (_wfp_isfiltersinstalled ())
+	{
+		rules = _r_obj_createlist (0x04, &_r_obj_dereference);
+
+		_r_obj_addlistitem (rules, _r_obj_reference (ptr_app), NULL);
+
+		hengine = _wfp_getenginehandle ();
+
+		if (_wfp_initialize (NULL, hengine))
+		{
+			_wfp_createappfilters (hengine, rules, DBG_ARG, FALSE);
+			_wfp_uninitialize (hengine, FALSE);
+		}
+
+		_r_obj_dereference (rules);
+	}
+
+	_app_profile_save (NULL);
+	_r_obj_dereference (ptr_app);
+
+	return TRUE;
+}
+
 _Ret_maybenull_
 PR_STRING _app_getappdisplayname (
 	_In_ PITEM_APP ptr_app,
@@ -1730,6 +2158,8 @@ VOID NTAPI _app_queue_fileinformation (
 )
 {
 	PITEM_APP_INFO ptr_app_info;
+	PITEM_APP ptr_app = NULL;
+	PR_LIST rules = NULL;
 	HANDLE hfile;
 	HWND hwnd;
 	NTSTATUS status;
@@ -1757,6 +2187,34 @@ VOID NTAPI _app_queue_fileinformation (
 	// query certificate information
 	if (_r_config_getboolean (L"IsCertificatesEnabled", TRUE, NULL))
 		_app_getfilesignatureinfo (ptr_app_info, hfile);
+
+	if (_r_config_getboolean (L"IsMicrosoftSignedAutoAllow", FALSE, NULL) &&
+		_app_issignaturemicrosoft (ptr_app_info->signature_info))
+	{
+		ptr_app = _app_getappitem (ptr_app_info->app_hash);
+
+		if (ptr_app && !ptr_app->is_enabled && !ptr_app->is_silent)
+		{
+			ptr_app->is_enabled = TRUE;
+
+			if (hwnd)
+				_app_listview_updateitemby_param (hwnd, ptr_app->app_hash, TRUE);
+
+			if (_wfp_isfiltersinstalled ())
+			{
+				rules = _r_obj_createlist (0x02, NULL);
+
+				_r_obj_addlistitem (rules, ptr_app, NULL);
+				_wfp_createappfilters (_wfp_getenginehandle (), rules, DBG_ARG, FALSE);
+				_r_obj_dereference (rules);
+			}
+
+			_app_profile_save (hwnd);
+		}
+
+		if (ptr_app)
+			_r_obj_dereference (ptr_app);
+	}
 
 	// query version info
 	_app_getfileversioninfo (ptr_app_info);

@@ -640,6 +640,8 @@ typedef enum _R_CMDLINE_INFO_CLASS
 	CmdlineClean,
 	CmdlineInstall,
 	CmdlineUninstall,
+	CmdlineEnable,
+	CmdlineDisable,
 } R_CMDLINE_INFO_CLASS;
 
 typedef BOOLEAN (NTAPI *PR_CMDLINE_CALLBACK) (

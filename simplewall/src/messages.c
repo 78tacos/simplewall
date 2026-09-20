@@ -15,6 +15,7 @@ VOID _app_message_initialize (
 	_r_tray_create (hwnd, &GUID_TrayIcon, RM_TRAYICON, NULL, NULL, FALSE);
 
 	_app_settrayicon (hwnd, _wfp_getinstalltype ());
+	_app_hotkey_update (hwnd);
 
 	hmenu = GetMenu (hwnd);
 
@@ -65,6 +66,7 @@ VOID _app_message_initialize (
 		_r_menu_checkitem (hmenu, IDM_USEDARKTHEME_CHK, 0, MF_BYCOMMAND, _r_theme_isenabled ());
 		_r_menu_checkitem (hmenu, IDM_LOADONSTARTUP_CHK, 0, MF_BYCOMMAND, _r_autorun_isenabled ());
 		_r_menu_checkitem (hmenu, IDM_STARTMINIMIZED_CHK, 0, MF_BYCOMMAND, _r_config_getboolean (L"IsStartMinimized", FALSE, NULL));
+		_r_menu_checkitem (hmenu, IDM_FILTERHOTKEY_CHK, 0, MF_BYCOMMAND, _r_config_getboolean (L"IsFilterToggleHotkey", TRUE, NULL));
 		_r_menu_checkitem (hmenu, IDM_SKIPUACWARNING_CHK, 0, MF_BYCOMMAND, _r_skipuac_isenabled ());
 		_r_menu_checkitem (hmenu, IDM_CHECKUPDATES_CHK, 0, MF_BYCOMMAND, _r_update_isenabled (FALSE));
 		_r_menu_checkitem (hmenu, IDM_RULE_BLOCKOUTBOUND, 0, MF_BYCOMMAND, _r_config_getboolean (L"BlockOutboundConnections", TRUE, NULL));
@@ -81,10 +83,12 @@ VOID _app_message_initialize (
 		_r_menu_checkitem (hmenu, IDM_CONNECTIONS_ENABLE, 0, MF_BYCOMMAND, _r_config_getboolean (L"IsNetworkMonitorEnabled", TRUE, NULL));
 		_r_menu_checkitem (hmenu, IDM_CONNECTIONS_SHOWAITCONNECTIONS, 0, MF_BYCOMMAND, _r_config_getboolean (L"IsNetworkShowWaitConnections", TRUE, NULL));
 		_r_menu_checkitem (hmenu, IDM_CONNECTIONS_MEASUREUDPTRAFFIC, 0, MF_BYCOMMAND, _r_config_getboolean (L"IsUdpTrafficEnabled", FALSE, NULL));
+		_r_menu_checkitem (hmenu, IDM_HIDELOOPBACK_CHK, 0, MF_BYCOMMAND, _r_config_getboolean (L"IsHideLoopbackConnections", FALSE, NULL));
 
 		is_enabled = _r_config_getboolean (L"IsHashesEnabled", FALSE, NULL);
 
 		_r_menu_checkitem (hmenu, IDM_USECERTIFICATES_CHK, 0, MF_BYCOMMAND, _r_config_getboolean (L"IsCertificatesEnabled", TRUE, NULL));
+		_r_menu_checkitem (hmenu, IDM_AUTOSIGNEDMS_CHK, 0, MF_BYCOMMAND, _r_config_getboolean (L"IsMicrosoftSignedAutoAllow", FALSE, NULL));
 		_r_menu_checkitem (hmenu, IDM_KEEPUNUSED_CHK, 0, MF_BYCOMMAND, _r_config_getboolean (L"IsKeepUnusedApps", TRUE, NULL));
 		_r_menu_checkitem (hmenu, IDM_USEHASHES_CHK, 0, MF_BYCOMMAND, is_enabled);
 		_r_menu_checkitem (hmenu, IDM_USENETWORKRESOLUTION_CHK, 0, MF_BYCOMMAND, _r_config_getboolean (L"IsNetworkResolutionsEnabled", TRUE, NULL));
@@ -134,12 +138,14 @@ VOID _app_message_localize (
 		// file submenu
 		_r_menu_setitemtextformat (hmenu, IDM_SETTINGS, FALSE, L"%s...\tF2", _r_locale_getstring (IDS_SETTINGS));
 		_r_menu_setitemtextformat (hmenu, IDM_ADD_FILE, FALSE, L"%s...", _r_locale_getstring (IDS_ADD_FILE));
+		_r_menu_setitemtextformat (hmenu, IDM_ADD_FOLDER, FALSE, L"%s...", _r_locale_getstring (IDS_ADD_FOLDER));
 		_r_menu_setitemtextformat (hmenu, IDM_IMPORT, FALSE, L"%s...\tCtrl+O", _r_locale_getstring (IDS_IMPORT));
 		_r_menu_setitemtextformat (hmenu, IDM_EXPORT, FALSE, L"%s...\tCtrl+S", _r_locale_getstring (IDS_EXPORT));
 		_r_menu_setitemtextformat (hmenu, IDM_EXIT, FALSE, _r_locale_getstring (IDS_EXIT));
 
 		// edit submenu
 		_r_menu_setitemtextformat (hmenu, IDM_PURGE_UNUSED, FALSE, L"%s\tCtrl+Shift+X", _r_locale_getstring (IDS_PURGE_UNUSED));
+		_r_menu_setitemtext (hmenu, IDM_PURGE_INVALID, FALSE, _r_locale_getstring (IDS_PURGE_INVALID));
 		_r_menu_setitemtextformat (hmenu, IDM_PURGE_TIMERS, FALSE, L"%s\tCtrl+Shift+T", _r_locale_getstring (IDS_PURGE_TIMERS));
 		_r_menu_setitemtextformat (hmenu, IDM_LOGCLEAR, FALSE, L"%s\tCtrl+X", _r_locale_getstring (IDS_LOGCLEAR));
 		_r_menu_setitemtextformat (hmenu, IDM_REFRESH, FALSE, L"%s\tF5", _r_locale_getstring (IDS_REFRESH));
@@ -177,6 +183,7 @@ VOID _app_message_localize (
 		// settings submenu
 		_r_menu_setitemtext (hmenu, IDM_LOADONSTARTUP_CHK, FALSE, _r_locale_getstring (IDS_LOADONSTARTUP_CHK));
 		_r_menu_setitemtext (hmenu, IDM_STARTMINIMIZED_CHK, FALSE, _r_locale_getstring (IDS_STARTMINIMIZED_CHK));
+		_r_menu_setitemtext (hmenu, IDM_FILTERHOTKEY_CHK, FALSE, _r_locale_getstring (IDS_FILTERHOTKEY_CHK));
 		_r_menu_setitemtext (hmenu, IDM_SKIPUACWARNING_CHK, FALSE, _r_locale_getstring (IDS_SKIPUACWARNING_CHK));
 		_r_menu_setitemtext (hmenu, IDM_CHECKUPDATES_CHK, FALSE, _r_locale_getstring (IDS_CHECKUPDATES_CHK));
 
@@ -194,9 +201,11 @@ VOID _app_message_localize (
 		_r_menu_setitemtext (hmenu, IDM_CONNECTIONS_ENABLE, FALSE, _r_locale_getstring (IDS_CONNECTIONS_ENABLE));
 		_r_menu_setitemtext (hmenu, IDM_CONNECTIONS_SHOWAITCONNECTIONS, FALSE, _r_locale_getstring (IDS_CONNECTIONS_SHOWAITCONNECTIONS));
 		_r_menu_setitemtext (hmenu, IDM_CONNECTIONS_MEASUREUDPTRAFFIC, FALSE, _r_locale_getstring (IDS_CONNECTIONS_MEASUREUDPTRAFFIC));
+		_r_menu_setitemtext (hmenu, IDM_HIDELOOPBACK_CHK, FALSE, _r_locale_getstring (IDS_HIDELOOPBACK_CHK));
 
 		_r_menu_setitemtext (hmenu, IDM_USENETWORKRESOLUTION_CHK, FALSE, _r_locale_getstring (IDS_USENETWORKRESOLUTION_CHK));
 		_r_menu_setitemtext (hmenu, IDM_USECERTIFICATES_CHK, FALSE, _r_locale_getstring (IDS_USECERTIFICATES_CHK));
+		_r_menu_setitemtext (hmenu, IDM_AUTOSIGNEDMS_CHK, FALSE, _r_locale_getstring (IDS_AUTOSIGNEDMS_CHK));
 		_r_menu_setitemtext (hmenu, IDM_KEEPUNUSED_CHK, FALSE, _r_locale_getstring (IDS_KEEPUNUSED_CHK));
 		_r_menu_setitemtext (hmenu, IDM_USEHASHES_CHK, FALSE, _r_locale_getstring (IDS_USEHASHES_CHK));
 		_r_menu_setitemtext (hmenu, IDM_USEAPPMONITOR_CHK, FALSE, _r_locale_getstring (IDS_USEAPPMONITOR_CHK));
@@ -289,6 +298,8 @@ VOID _app_message_localize (
 			{
 				_r_listview_setcolumn (hwnd, tab_context->listview_id, 0, _r_locale_getstring (IDS_NAME), 0);
 				_r_listview_setcolumn (hwnd, tab_context->listview_id, 1, _r_locale_getstring (IDS_ADDED), 0);
+				_r_listview_setcolumn (hwnd, tab_context->listview_id, 2, _r_locale_getstring (IDS_LASTCONNECT), 0);
+				_r_listview_setcolumn (hwnd, tab_context->listview_id, 3, _r_locale_getstring (IDS_COMMENT), 0);
 
 				break;
 			}
@@ -495,6 +506,8 @@ VOID _app_generate_rulescontrol (
 			_r_str_printf (buffer, RTL_NUMBER_OF (buffer), _r_locale_getstring (IDS_RULE_APPLY_2), _r_obj_getstring (ptr_log->remote_addr_str));
 
 			_r_menu_additem (hsubmenu, (ULONG)(IDX_RULES_SPECIAL + i) + 1, buffer);
+
+			_r_menu_additem (hsubmenu, IDM_NOTIFY_BLOCKHOST, _r_locale_getstring (IDS_NOTIFY_BLOCKHOST));
 		}
 	}
 
@@ -1137,6 +1150,37 @@ VOID _app_displayinfoapp_callback (
 
 					_r_obj_dereference (string);
 				}
+
+				break;
+			}
+
+			case 2:
+			{
+				if (ptr_app->last_connect)
+				{
+					string = _r_format_unixtime (ptr_app->last_connect, FDTF_SHORTDATE | FDTF_LONGTIME);
+
+					if (string)
+					{
+						_r_str_copy (lpnmlv->item.pszText, lpnmlv->item.cchTextMax, string->buffer);
+
+						_r_obj_dereference (string);
+					}
+				}
+				else
+				{
+					_r_str_copy (lpnmlv->item.pszText, lpnmlv->item.cchTextMax, L"");
+				}
+
+				break;
+			}
+
+			case 3:
+			{
+				if (!_r_obj_isstringempty (ptr_app->comment))
+					_r_str_copy (lpnmlv->item.pszText, lpnmlv->item.cchTextMax, ptr_app->comment->buffer);
+				else
+					_r_str_copy (lpnmlv->item.pszText, lpnmlv->item.cchTextMax, L"");
 
 				break;
 			}
@@ -2116,6 +2160,9 @@ VOID _app_command_checkbox (
 
 				ptr_app->is_enabled = new_val;
 
+				if (ptr_app->is_folder)
+					_app_collectfolderapps (ptr_app, rules);
+
 				_app_listview_lock (hwnd, tab_context->listview_id);
 				_app_setappiteminfo (hwnd, tab_context->listview_id, item_id, ptr_app);
 				_app_listview_unlock (hwnd, tab_context->listview_id);
@@ -2844,6 +2891,91 @@ VOID _app_command_purgeunused (
 			}
 
 			//_r_queuedlock_releaseexclusive (&lock_apps);
+
+			if (!_r_obj_isempty2 (guids) && _wfp_isfiltersinstalled ())
+				_wfp_destroyfilters_array (_wfp_getenginehandle (), guids, DBG_ARG);
+
+			_app_listview_updateby_id (hwnd, DATA_LISTVIEW_CURRENT, PR_UPDATE_TYPE | PR_UPDATE_FORCE);
+
+			_app_profile_save (hwnd);
+		}
+	}
+
+	_r_obj_deletestringbuilder (&sb);
+
+	_r_obj_dereference (apps_list);
+	_r_obj_dereference (guids);
+}
+
+VOID _app_command_purgeinvalid (
+	_In_ HWND hwnd
+)
+{
+	R_STRINGBUILDER sb;
+	PITEM_APP ptr_app = NULL;
+	PR_STRING string = NULL;
+	PR_LIST apps_list;
+	PR_ARRAY guids;
+	ULONG_PTR enum_key = 0;
+	ULONG hash_code;
+	INT i = 1;
+
+	apps_list = _r_obj_createlist (0x10, NULL);
+	guids = _r_obj_createarray (sizeof (GUID), 0x10, NULL);
+
+	_r_obj_initializestringbuilder (&sb, 0);
+
+	_r_queuedlock_acquireshared (&lock_apps);
+
+	while (_r_obj_enumhashtablepointer (apps_table, (PVOID_PTR)&ptr_app, &hash_code, &enum_key))
+	{
+		if (ptr_app->is_undeletable || _app_isappexists (ptr_app) || ptr_app->type == DATA_APP_SERVICE || ptr_app->type == DATA_APP_UWP)
+			continue;
+
+		if (!_r_obj_isempty (ptr_app->guids))
+			_r_obj_addarrayitems (guids, ptr_app->guids->items, ptr_app->guids->count);
+
+		_r_obj_addlistitem (apps_list, ptr_app, NULL);
+
+		string = _app_getapppath (ptr_app);
+
+		if (string)
+		{
+			_r_obj_appendstringbuilderformat (&sb, L"%d. ", i);
+			_r_obj_appendstringbuilder2 (&sb, &string->sr);
+			_r_obj_appendstringbuilder (&sb, SZ_CRLF);
+
+			_r_obj_dereference (string);
+
+			i += 1;
+		}
+	}
+
+	_r_queuedlock_releaseshared (&lock_apps);
+
+	if (_r_obj_getlistsize (apps_list))
+	{
+		string = _r_obj_finalstringbuilder (&sb);
+
+		_r_str_trimstring2 (&string->sr, SZ_CRLF, PR_TRIM_END_ONLY);
+
+		if (_r_show_confirmmessage (hwnd, _r_locale_getstring (IDS_PURGE_INVALID), string->buffer, L"ConfirmInvalid", FALSE))
+		{
+			for (ULONG_PTR i = 0; i < _r_obj_getlistsize (apps_list); i++)
+			{
+				ptr_app = (PITEM_APP)_r_obj_getlistitem (apps_list, i);
+
+				if (!ptr_app)
+					continue;
+
+				hash_code = ptr_app->app_hash;
+
+				_app_deleteappitem (hwnd, ptr_app->type, hash_code);
+				_app_notify_freeobject (NULL, ptr_app);
+				_app_timer_reset (NULL, ptr_app);
+
+				_app_freeapplication (hwnd, hash_code);
+			}
 
 			if (!_r_obj_isempty2 (guids) && _wfp_isfiltersinstalled ())
 				_wfp_destroyfilters_array (_wfp_getenginehandle (), guids, DBG_ARG);

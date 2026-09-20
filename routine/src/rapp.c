@@ -382,6 +382,18 @@ BOOLEAN _r_app_initialize (
 			if (cmd_callback (CmdlineUninstall))
 				return FALSE;
 		}
+
+		if (_r_sys_getopt (_r_sys_getcommandline (), L"enable", NULL))
+		{
+			if (cmd_callback (CmdlineEnable))
+				return FALSE;
+		}
+
+		if (_r_sys_getopt (_r_sys_getcommandline (), L"disable", NULL))
+		{
+			if (cmd_callback (CmdlineDisable))
+				return FALSE;
+		}
 	}
 	else
 	{
@@ -395,6 +407,12 @@ BOOLEAN _r_app_initialize (
 			return FALSE;
 
 		if (_r_sys_getopt (_r_sys_getcommandline (), L"uninstall", NULL))
+			return FALSE;
+
+		if (_r_sys_getopt (_r_sys_getcommandline (), L"enable", NULL))
+			return FALSE;
+
+		if (_r_sys_getopt (_r_sys_getcommandline (), L"disable", NULL))
 			return FALSE;
 	}
 

@@ -1528,6 +1528,86 @@ INT_PTR CALLBACK NotificationProc (
 					break;
 				}
 
+				case IDM_NOTIFY_BLOCKHOST:
+				{
+					PR_STRING host_string;
+					PITEM_RULE ptr_rule;
+					PITEM_APP ptr_app;
+					PITEM_LOG ptr_log;
+					PR_LIST rules;
+					HWND hmain;
+					ULONG_PTR rule_idx;
+
+					ptr_log = _app_notify_getobject (_app_notify_getapp_id (hwnd));
+
+					if (!ptr_log)
+						break;
+
+					ptr_app = _app_getappitem (ptr_log->app_hash);
+
+					if (!ptr_app)
+					{
+						_r_obj_dereference (ptr_log);
+						break;
+					}
+
+					if (!_r_obj_isstringempty (ptr_log->remote_host_str))
+					{
+						host_string = _r_obj_reference (ptr_log->remote_host_str);
+					}
+					else
+					{
+						host_string = _app_formataddress (ptr_log->af, 0, &ptr_log->remote_addr, 0, FMTADDR_AS_RULE);
+					}
+
+					if (_r_obj_isstringempty (host_string))
+					{
+						if (host_string)
+							_r_obj_dereference (host_string);
+
+						_r_obj_dereference (ptr_log);
+						_r_obj_dereference (ptr_app);
+						break;
+					}
+
+					ptr_rule = _app_addrule (host_string, host_string, NULL, FWP_DIRECTION_OUTBOUND, FWP_ACTION_BLOCK, 0, ptr_log->af);
+
+					_r_obj_addhashtableitem (ptr_rule->apps, ptr_log->app_hash, NULL);
+
+					_app_ruleenable (ptr_rule, TRUE, FALSE);
+
+					_r_queuedlock_acquireexclusive (&lock_rules);
+					_r_obj_addlistitem (rules_list, _r_obj_reference (ptr_rule), &rule_idx);
+					_r_queuedlock_releaseexclusive (&lock_rules);
+
+					hmain = _r_app_gethwnd ();
+
+					if (hmain)
+					{
+						_app_listview_addruleitem (hmain, ptr_rule, rule_idx, TRUE);
+						_app_listview_updateby_id (hmain, DATA_LISTVIEW_CURRENT, PR_UPDATE_TYPE);
+					}
+
+					if (_wfp_isfiltersinstalled ())
+					{
+						rules = _r_obj_createlist (0x02, NULL);
+
+						_r_obj_addlistitem (rules, ptr_rule, NULL);
+						_wfp_createrulefilters (_wfp_getenginehandle (), rules, DBG_ARG, FALSE);
+						_r_obj_dereference (rules);
+					}
+
+					_app_profile_save (hwnd);
+					_app_notify_freeobject (hwnd, ptr_app);
+
+					_r_obj_dereference (host_string);
+					_r_obj_dereference (ptr_rule);
+					_r_obj_dereference (ptr_log);
+					_r_obj_dereference (ptr_app);
+
+					break;
+				}
+
 				case IDM_COPY: // ctrl+c
 				case IDM_SELECT_ALL: // ctrl+a
 				{

@@ -1424,6 +1424,14 @@ BOOLEAN _wfp_createappfilters (
 
 	is_enabled = _app_initinterfacestate (_r_app_gethwnd (), FALSE);
 
+	for (ULONG_PTR i = 0; i < _r_obj_getlistsize (rules); i++)
+	{
+		ptr_app = (PITEM_APP)_r_obj_getlistitem (rules, i);
+
+		if (ptr_app && ptr_app->is_folder)
+			_app_collectfolderapps (ptr_app, rules);
+	}
+
 	if (!is_intransact)
 	{
 		for (ULONG_PTR i = 0; i < _r_obj_getlistsize (rules); i++)
@@ -1463,7 +1471,7 @@ BOOLEAN _wfp_createappfilters (
 	{
 		ptr_app = (PITEM_APP)_r_obj_getlistitem (rules, i);
 
-		if (ptr_app && ptr_app->is_enabled)
+		if (ptr_app && ptr_app->is_enabled && !ptr_app->is_folder)
 		{
 			string = _app_getappdisplayname (ptr_app, TRUE);
 

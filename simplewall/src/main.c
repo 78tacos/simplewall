@@ -160,6 +160,13 @@ VOID _app_config_apply (
 			break;
 		}
 
+		case IDC_FILTERHOTKEY_CHK:
+		case IDM_FILTERHOTKEY_CHK:
+		{
+			new_val = !_r_config_getboolean (L"IsFilterToggleHotkey", TRUE, NULL);
+			break;
+		}
+
 		case IDC_SKIPUACWARNING_CHK:
 		case IDM_SKIPUACWARNING_CHK:
 		{
@@ -284,6 +291,19 @@ VOID _app_config_apply (
 			break;
 		}
 
+		case IDM_HIDELOOPBACK_CHK:
+		{
+			new_val = !_r_config_getboolean (L"IsHideLoopbackConnections", FALSE, NULL);
+			break;
+		}
+
+		case IDC_AUTOSIGNEDMS_CHK:
+		case IDM_AUTOSIGNEDMS_CHK:
+		{
+			new_val = !_r_config_getboolean (L"IsMicrosoftSignedAutoAllow", FALSE, NULL);
+			break;
+		}
+
 		default:
 		{
 			return;
@@ -318,6 +338,21 @@ VOID _app_config_apply (
 			_r_config_setboolean (L"IsStartMinimized", new_val, NULL);
 
 			_r_menu_checkitem (hmenu, IDM_STARTMINIMIZED_CHK, 0, MF_BYCOMMAND, new_val);
+
+			break;
+		}
+
+		case IDC_FILTERHOTKEY_CHK:
+		case IDM_FILTERHOTKEY_CHK:
+		{
+			_r_config_setboolean (L"IsFilterToggleHotkey", new_val, NULL);
+
+			_r_menu_checkitem (hmenu, IDM_FILTERHOTKEY_CHK, 0, MF_BYCOMMAND, new_val);
+
+			if (hsettings)
+				_r_button_setcheck (hsettings, IDC_FILTERHOTKEY_CHK, new_val);
+
+			_app_hotkey_update (hwnd);
 
 			break;
 		}
@@ -456,6 +491,15 @@ VOID _app_config_apply (
 			break;
 		}
 
+		case IDM_HIDELOOPBACK_CHK:
+		{
+			_r_config_setboolean (L"IsHideLoopbackConnections", new_val, NULL);
+
+			_r_menu_checkitem (hmenu, IDM_HIDELOOPBACK_CHK, 0, MF_BYCOMMAND, new_val);
+
+			break;
+		}
+
 		case IDC_USESTEALTHMODE_CHK:
 		{
 			_r_config_setboolean (L"UseStealthMode", new_val, NULL);
@@ -489,6 +533,19 @@ VOID _app_config_apply (
 
 				_r_queuedlock_releaseshared (&lock_apps);
 			}
+
+			break;
+		}
+
+		case IDC_AUTOSIGNEDMS_CHK:
+		case IDM_AUTOSIGNEDMS_CHK:
+		{
+			_r_config_setboolean (L"IsMicrosoftSignedAutoAllow", new_val, NULL);
+
+			_r_menu_checkitem (hmenu, IDM_AUTOSIGNEDMS_CHK, 0, MF_BYCOMMAND, new_val);
+
+			if (hsettings)
+				_r_button_setcheck (hsettings, IDC_AUTOSIGNEDMS_CHK, new_val);
 
 			break;
 		}
@@ -573,15 +630,20 @@ VOID _app_config_apply (
 		case IDM_PROFILETYPE_COMPRESSED:
 		case IDM_PROFILETYPE_ENCRYPTED:
 		case IDM_CONNECTIONS_MEASUREUDPTRAFFIC:
+		case IDM_HIDELOOPBACK_CHK:
 		case IDC_USENETWORKRESOLUTION_CHK:
 		case IDM_USENETWORKRESOLUTION_CHK:
 		case IDC_USECERTIFICATES_CHK:
 		case IDM_USECERTIFICATES_CHK:
+		case IDC_AUTOSIGNEDMS_CHK:
+		case IDM_AUTOSIGNEDMS_CHK:
 		case IDM_KEEPUNUSED_CHK:
 		case IDC_USEHASHES_CHK:
 		case IDM_USEHASHES_CHK:
 		case IDM_USEAPPMONITOR_CHK:
 		case IDM_USEDARKTHEME_CHK:
+		case IDC_FILTERHOTKEY_CHK:
+		case IDM_FILTERHOTKEY_CHK:
 		{
 			return;
 		}
@@ -645,6 +707,7 @@ INT_PTR CALLBACK SettingsProc (
 					_r_button_setcheck (hwnd, IDC_USECERTIFICATES_CHK, _r_config_getboolean (L"IsCertificatesEnabled", TRUE, NULL));
 					_r_button_setcheck (hwnd, IDC_USEHASHES_CHK, _r_config_getboolean (L"IsHashesEnabled", FALSE, NULL));
 					_r_button_setcheck (hwnd, IDC_USENETWORKRESOLUTION_CHK, _r_config_getboolean (L"IsNetworkResolutionsEnabled", TRUE, NULL));
+					_r_button_setcheck (hwnd, IDC_AUTOSIGNEDMS_CHK, _r_config_getboolean (L"IsMicrosoftSignedAutoAllow", FALSE, NULL));
 
 					htip = _r_tooltip_create (hwnd);
 
@@ -688,6 +751,7 @@ INT_PTR CALLBACK SettingsProc (
 					_r_button_setcheck (hwnd, IDC_CONFIRMLOGCLEAR_CHK, _r_config_getboolean (L"ConfirmLogClear", TRUE, NULL));
 					_r_button_setcheck (hwnd, IDC_CONFIRMALLOW_CHK, _r_config_getboolean (L"ConfirmAllow", TRUE, NULL));
 					_r_button_setcheck (hwnd, IDC_TRAYICONSINGLECLICK_CHK, _r_config_getboolean (L"IsTrayIconSingleClick", TRUE, NULL));
+					_r_button_setcheck (hwnd, IDC_FILTERHOTKEY_CHK, _r_config_getboolean (L"IsFilterToggleHotkey", TRUE, NULL));
 
 					break;
 				}
@@ -786,6 +850,7 @@ INT_PTR CALLBACK SettingsProc (
 					_r_button_setcheck (hwnd, IDC_EXCLUDEINBOUND_CHK, _r_config_getboolean (L"IsExcludeInbound", FALSE, NULL));
 					_r_button_setcheck (hwnd, IDC_EXCLUDESTEALTH_CHK, _r_config_getboolean (L"IsExcludeStealth", TRUE, NULL));
 					_r_button_setcheck (hwnd, IDC_EXCLUDECLASSIFYALLOW_CHK, _r_config_getboolean (L"IsExcludeClassifyAllow", TRUE, NULL));
+					_r_button_setcheck (hwnd, IDC_EXCLUDELOOPBACK_CHK, _r_config_getboolean (L"IsHideLoopbackConnections", FALSE, NULL));
 
 					// win8+
 					if (_r_sys_isosversionlower (WINDOWS_8))
@@ -855,6 +920,7 @@ INT_PTR CALLBACK SettingsProc (
 					_r_ctrl_setstring (hwnd, IDC_USECERTIFICATES_CHK, _r_locale_getstring (IDS_USECERTIFICATES_CHK));
 					_r_ctrl_setstring (hwnd, IDC_USEHASHES_CHK, _r_locale_getstring (IDS_USEHASHES_CHK));
 					_r_ctrl_setstring (hwnd, IDC_USENETWORKRESOLUTION_CHK, _r_locale_getstring (IDS_USENETWORKRESOLUTION_CHK));
+					_r_ctrl_setstring (hwnd, IDC_AUTOSIGNEDMS_CHK, _r_locale_getstring (IDS_AUTOSIGNEDMS_CHK));
 
 					break;
 				}
@@ -890,6 +956,7 @@ INT_PTR CALLBACK SettingsProc (
 					_r_ctrl_setstring (hwnd, IDC_CONFIRMLOGCLEAR_CHK, _r_locale_getstring (IDS_CONFIRMLOGCLEAR_CHK));
 					_r_ctrl_setstring (hwnd, IDC_CONFIRMALLOW_CHK, _r_locale_getstring (IDS_CONFIRMALLOW_CHK));
 					_r_ctrl_setstring (hwnd, IDC_TRAYICONSINGLECLICK_CHK, _r_locale_getstring (IDS_TRAYICONSINGLECLICK_CHK));
+					_r_ctrl_setstring (hwnd, IDC_FILTERHOTKEY_CHK, _r_locale_getstring (IDS_FILTERHOTKEY_CHK));
 
 					break;
 				}
@@ -940,6 +1007,7 @@ INT_PTR CALLBACK SettingsProc (
 					_r_ctrl_setstringformat (hwnd, IDC_EXCLUDEINBOUND_CHK, L"%s %s [win8+]", _r_locale_getstring (IDS_TITLE_EXCLUDE), _r_locale_getstring (IDS_EXCLUDEINBOUND_CHK));
 					_r_ctrl_setstringformat (hwnd, IDC_EXCLUDESTEALTH_CHK, L"%s %s", _r_locale_getstring (IDS_TITLE_EXCLUDE), _r_locale_getstring (IDS_EXCLUDESTEALTH_CHK));
 					_r_ctrl_setstringformat (hwnd, IDC_EXCLUDECLASSIFYALLOW_CHK, L"%s %s [win8+]", _r_locale_getstring (IDS_TITLE_EXCLUDE), _r_locale_getstring (IDS_EXCLUDECLASSIFYALLOW_CHK));
+					_r_ctrl_setstringformat (hwnd, IDC_EXCLUDELOOPBACK_CHK, L"%s %s", _r_locale_getstring (IDS_TITLE_EXCLUDE), _r_locale_getstring (IDS_HIDELOOPBACK_CHK));
 
 					break;
 				}
@@ -1224,6 +1292,8 @@ INT_PTR CALLBACK SettingsProc (
 				case IDC_USECERTIFICATES_CHK:
 				case IDC_USEHASHES_CHK:
 				case IDC_USENETWORKRESOLUTION_CHK:
+				case IDC_AUTOSIGNEDMS_CHK:
+				case IDC_FILTERHOTKEY_CHK:
 				{
 					HWND hmain = _r_app_gethwnd ();
 
@@ -1580,6 +1650,28 @@ INT_PTR CALLBACK SettingsProc (
 					_r_config_setboolean (L"IsExcludeInbound", _r_button_ischecked (hwnd, ctrl_id), NULL);
 					break;
 				}
+
+				case IDC_EXCLUDELOOPBACK_CHK:
+				{
+					HWND hmain;
+					BOOLEAN new_val;
+
+					new_val = _r_button_ischecked (hwnd, ctrl_id);
+
+					_r_config_setboolean (L"IsHideLoopbackConnections", new_val, NULL);
+
+					hmain = _r_app_gethwnd ();
+
+					if (hmain)
+					{
+						HMENU hmenu = GetMenu (hmain);
+
+						if (hmenu)
+							_r_menu_checkitem (hmenu, IDM_HIDELOOPBACK_CHK, 0, MF_BYCOMMAND, new_val);
+					}
+
+					break;
+				}
 			}
 
 			break;
@@ -1712,8 +1804,10 @@ VOID _app_tabs_init (
 
 			if (tab_context->listview_id >= IDC_APPS_PROFILE && tab_context->listview_id <= IDC_APPS_UWP)
 			{
-				_r_listview_addcolumn (hwnd, tab_context->listview_id, 0, L"", -80, LVCFMT_LEFT);
-				_r_listview_addcolumn (hwnd, tab_context->listview_id, 1, L"", -20, LVCFMT_RIGHT);
+				_r_listview_addcolumn (hwnd, tab_context->listview_id, 0, L"", -52, LVCFMT_LEFT);
+				_r_listview_addcolumn (hwnd, tab_context->listview_id, 1, L"", -16, LVCFMT_RIGHT);
+				_r_listview_addcolumn (hwnd, tab_context->listview_id, 2, L"", -16, LVCFMT_RIGHT);
+				_r_listview_addcolumn (hwnd, tab_context->listview_id, 3, L"", -16, LVCFMT_LEFT);
 			}
 			else
 			{
@@ -2728,6 +2822,23 @@ INT_PTR CALLBACK DlgProc (
 			break;
 		}
 
+		case WM_HOTKEY:
+		{
+			BOOLEAN is_filtersinstalled;
+
+			if (wparam != FILTER_TOGGLE_HOTKEY_ID)
+				break;
+
+			if (_wfp_isfiltersapplying ())
+				break;
+
+			is_filtersinstalled = !_wfp_isfiltersinstalled ();
+
+			_app_changefilters (hwnd, is_filtersinstalled, TRUE);
+
+			break;
+		}
+
 		case WM_COMMAND:
 		{
 			INT ctrl_id = LOWORD (wparam);
@@ -3116,12 +3227,15 @@ INT_PTR CALLBACK DlgProc (
 				case IDM_CONNECTIONS_ENABLE:
 				case IDM_CONNECTIONS_SHOWAITCONNECTIONS:
 				case IDM_CONNECTIONS_MEASUREUDPTRAFFIC:
+				case IDM_HIDELOOPBACK_CHK:
 				case IDM_USENETWORKRESOLUTION_CHK:
 				case IDM_USECERTIFICATES_CHK:
+				case IDM_AUTOSIGNEDMS_CHK:
 				case IDM_KEEPUNUSED_CHK:
 				case IDM_USEHASHES_CHK:
 				case IDM_USEAPPMONITOR_CHK:
 				case IDM_USEDARKTHEME_CHK:
+				case IDM_FILTERHOTKEY_CHK:
 				{
 					_app_config_apply (hwnd, NULL, ctrl_id);
 					break;
@@ -3324,6 +3438,47 @@ INT_PTR CALLBACK DlgProc (
 					break;
 				}
 
+				case IDM_ADD_FOLDER:
+				{
+					R_FILE_DIALOG file_dialog;
+					PITEM_APP ptr_app;
+					PR_STRING path;
+					HRESULT status;
+
+					status = _r_filedialog_initialize (&file_dialog, PR_FILEDIALOG_OPENDIR);
+
+					if (SUCCEEDED (status))
+					{
+						status = _r_filedialog_show (hwnd, &file_dialog);
+
+						if (SUCCEEDED (status))
+						{
+							status = _r_filedialog_getpath (&file_dialog, &path);
+
+							if (SUCCEEDED (status))
+							{
+								ptr_app = _app_addapplication (hwnd, DATA_UNKNOWN, path, NULL, NULL);
+
+								if (ptr_app)
+								{
+									_app_listview_updateby_param (hwnd, ptr_app->app_hash, PR_SETITEM_UPDATE, TRUE);
+									_app_listview_showitemby_param (hwnd, ptr_app->app_hash, TRUE);
+
+									_app_profile_save (hwnd);
+
+									_r_obj_dereference (ptr_app);
+								}
+
+								_r_obj_dereference (path);
+							}
+						}
+
+						_r_filedialog_destroy (&file_dialog);
+					}
+
+					break;
+				}
+
 				case IDM_DISABLENOTIFICATIONS:
 				case IDM_DISABLEREMOVAL:
 				case IDM_DISABLETIMER:
@@ -3461,6 +3616,12 @@ INT_PTR CALLBACK DlgProc (
 					break;
 				}
 
+				case IDM_PURGE_INVALID:
+				{
+					_app_command_purgeinvalid (hwnd);
+					break;
+				}
+
 				case IDM_PURGE_TIMERS:
 				{
 					_app_command_purgetimers (hwnd);
@@ -3551,6 +3712,8 @@ BOOLEAN NTAPI _app_parseargs (
 				L"simplewall.exe -install -temp - enable filtering until reboot.\r\n"
 				L"simplewall.exe -install -silent - enable filtering without prompt.\r\n"
 				L"simplewall.exe -uninstall - remove all installed filters.\r\n"
+				L"simplewall.exe -enable <path> - allow an app by path.\r\n"
+				L"simplewall.exe -disable <path> - disable an app by path.\r\n"
 				L"simplewall.exe -help - show this message."
 			);
 
@@ -3585,6 +3748,36 @@ BOOLEAN NTAPI _app_parseargs (
 				_wfp_destroyfilters (hengine);
 				_wfp_uninitialize (hengine, TRUE);
 			}
+
+			return TRUE;
+		}
+
+		case CmdlineEnable:
+		case CmdlineDisable:
+		{
+			PR_STRING path = NULL;
+			BOOLEAN is_enable;
+
+			is_enable = (info_class == CmdlineEnable);
+
+			if (!_r_sys_getopt (_r_sys_getcommandline (), is_enable ? L"enable" : L"disable", &path) || _r_obj_isstringempty (path))
+			{
+				_r_show_message (
+					NULL,
+					MB_OK | MB_ICONINFORMATION,
+					L"Available options:",
+					L"simplewall.exe -enable <path>\r\n"
+					L"simplewall.exe -disable <path>"
+				);
+
+				if (path)
+					_r_obj_dereference (path);
+
+				return TRUE;
+			}
+
+			_app_command_setapppath (path, is_enable);
+			_r_obj_dereference (path);
 
 			return TRUE;
 		}

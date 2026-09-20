@@ -251,6 +251,24 @@ FORCEINLINE BOOLEAN _app_network_iswaitingconnection (
 	return FALSE;
 }
 
+FORCEINLINE BOOLEAN _app_network_ishiddenloopback (
+	_In_ ADDRESS_FAMILY af,
+	_In_ LPCVOID address1,
+	_In_opt_ LPCVOID address2
+)
+{
+	if (!_r_config_getboolean (L"IsHideLoopbackConnections", FALSE, NULL))
+		return FALSE;
+
+	if (_app_isloopbackaddress (af, address1))
+		return TRUE;
+
+	if (address2 && _app_isloopbackaddress (af, address2))
+		return TRUE;
+
+	return FALSE;
+}
+
 VOID _app_network_generatetable (
 	_Inout_ PITEM_NETWORK_CONTEXT network_context
 )
@@ -296,6 +314,9 @@ VOID _app_network_generatetable (
 
 				remote_addr.S_un.S_addr = tcp4_table->table[i].dwRemoteAddr;
 				local_addr.S_un.S_addr = tcp4_table->table[i].dwLocalAddr;
+
+				if (_app_network_ishiddenloopback (AF_INET, &remote_addr, &local_addr))
+					continue;
 
 				network_hash = _app_network_gethash (
 					AF_INET,
@@ -383,6 +404,9 @@ VOID _app_network_generatetable (
 			for (ULONG i = 0; i < tcp6_table->dwNumEntries; i++)
 			{
 				if (_app_network_iswaitingconnection (tcp6_table->table[i].dwOwningPid))
+					continue;
+
+				if (_app_network_ishiddenloopback (AF_INET6, tcp6_table->table[i].ucRemoteAddr, tcp6_table->table[i].ucLocalAddr))
 					continue;
 
 				network_hash = _app_network_gethash (
@@ -476,6 +500,9 @@ VOID _app_network_generatetable (
 
 				local_addr.S_un.S_addr = udp4_table->table[i].dwLocalAddr;
 
+				if (_app_network_ishiddenloopback (AF_INET, &local_addr, NULL))
+					continue;
+
 				network_hash = _app_network_gethash (AF_INET, udp4_table->table[i].dwOwningPid, NULL, 0, &local_addr, udp4_table->table[i].dwLocalPort, IPPROTO_UDP, 0);
 
 				ptr_network = _app_network_getitem (network_hash);
@@ -549,6 +576,9 @@ VOID _app_network_generatetable (
 
 			for (ULONG i = 0; i < udp6_table->dwNumEntries; i++)
 			{
+				if (_app_network_ishiddenloopback (AF_INET6, udp6_table->table[i].ucLocalAddr, NULL))
+					continue;
+
 				network_hash = _app_network_gethash (AF_INET6, udp6_table->table[i].dwOwningPid, NULL, 0, udp6_table->table[i].ucLocalAddr, udp6_table->table[i].dwLocalPort, IPPROTO_UDP, 0);
 
 				ptr_network = _app_network_getitem (network_hash);
