@@ -1,5 +1,8 @@
 .vs/
-.vscode/
+.vscode/*
+!.vscode/c_cpp_properties.json
+!.vscode/extensions.json
+!.vscode/tasks.json
 **/packages/
 **/temp/
 **/__pycache__/

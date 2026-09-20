@@ -31,22 +31,37 @@ On Windows:
 setup.bat
 ```
 
-On any machine:
+On Linux, macOS, or a Codespace:
 
 ```bash
-test -f simplewall/simplewall.sln
-test -f routine/src/routine.c
-test -f builder/build.bat
+bash tools/check-layout.sh
 ```
 
 ## Build (Windows)
 
-1. Install Visual Studio 2022 or 2026 with the Desktop C++ workload and the Windows 10/11 SDK.
+simplewall is a Win32 WFP app. It needs **MSVC toolset v145 (Visual Studio 2026)** and the Windows SDK. It will not compile on Linux or in a GitHub Codespace.
+
+1. Install Visual Studio 2026 with the Desktop C++ workload and the Windows 10/11 SDK.
 2. Open `simplewall\simplewall.sln`.
 3. Restore NuGet (`Microsoft.Windows.CppWinRT` 2.0.230706.1).
-4. Build **Release | x64** (or ARM64). Latest `build_vc.bat` looks for VS 2026 and builds those two platforms.
+4. Build **Release | x64** (or ARM64). `build_vc.bat` looks for VS 2026.
 
 Do not open a copy of `simplewall` by itself. The include path `.\..\routine\src\` only works when `routine` is the sibling folder of `simplewall`.
+
+### GitHub Actions
+
+The **Build** workflow (`.github/workflows/build.yml`) checks the sibling layout on Ubuntu, then compiles **Release | x64** on `windows-latest` (Visual Studio 2026). The `simplewall.exe` artifact is named `simplewall-x64`.
+
+```bash
+gh workflow run Build
+gh run watch --exit-status
+```
+
+### GitHub Codespaces
+
+[Open in GitHub Codespaces](https://codespaces.new/78tacos/simplewall)
+
+The devcontainer (`.devcontainer/devcontainer.json`) is a Linux C++ editor: C/C++ IntelliSense, include paths into `simplewall/src` and `routine/src`, and GitHub CLI. After create it runs `tools/check-layout.sh`. Use it to browse and edit; trigger the Windows CI workflow to compile.
 
 ## Packaging and locales
 

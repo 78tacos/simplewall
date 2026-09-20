@@ -1,0 +1,39 @@
+{
+  "name": "simplewall workspace",
+  "image": "mcr.microsoft.com/devcontainers/cpp:1-ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.cpptools",
+        "ms-vscode.cpptools-extension-pack",
+        "github.vscode-github-actions",
+        "ms-vscode.powershell"
+      ],
+      "settings": {
+        "C_Cpp.default.includePath": [
+          "${workspaceFolder}/simplewall/src",
+          "${workspaceFolder}/routine/src"
+        ],
+        "C_Cpp.default.defines": [
+          "UNICODE",
+          "_UNICODE",
+          "_WIN64",
+          "WIN32_LEAN_AND_MEAN",
+          "SECURITY_WIN32",
+          "APP_HAVE_TRAY",
+          "APP_HAVE_SETTINGS"
+        ],
+        "C_Cpp.default.compilerPath": "/usr/bin/clang",
+        "files.eol": "\r\n"
+      }
+    }
+  },
+  "hostRequirements": {
+    "cpus": 2,
+    "memory": "4gb"
+  }
+}

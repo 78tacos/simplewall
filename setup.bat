@@ -34,9 +34,12 @@ echo   routine\     compiler SDK used via ..\routine
 echo   builder\     packaging scripts used via ..\builder
 echo.
 echo Next:
-echo   1. Open simplewall\simplewall.sln in Visual Studio 2022 or 2026
+echo   1. Open simplewall\simplewall.sln in Visual Studio 2026 ^(toolset v145^)
 echo   2. Restore NuGet packages
 echo   3. Build Release ^| x64
+echo.
+echo This Linux/Codespaces checkout cannot link the Win32 app.
+echo Use GitHub Actions ^(Build workflow^) or a Windows VS 2026 machine.
 echo.
 echo Packaging:  simplewall\build.bat
 echo Locales:    simplewall\build_locale.bat

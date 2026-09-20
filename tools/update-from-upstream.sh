@@ -9,37 +9,29 @@ trap 'rm -rf "$TMP"' EXIT
 clone_latest() {
 	local name="$1"
 	local url="$2"
+	local sha_var="$3"
 	git clone --depth 1 "$url" "$TMP/$name"
-	# Drop nested git metadata so this workspace stays a single repo.
+	# Record the cloned commit before dropping nested git metadata.
+	printf -v "$sha_var" '%s' "$(git -C "$TMP/$name" rev-parse HEAD)"
 	rm -rf "$TMP/$name/.git"
 	rm -rf "$ROOT/$name"
 	mkdir -p "$ROOT/$name"
 	tar -C "$TMP/$name" -cf - . | tar -C "$ROOT/$name" -xf -
 }
 
-sha_of() {
-	local url="$1"
-	git ls-remote "$url" refs/heads/master | awk '{print $1}'
-}
-
 echo "Cloning latest henrypp/simplewall, routine, and builder..."
-clone_latest simplewall https://github.com/henrypp/simplewall.git
-clone_latest routine https://github.com/henrypp/routine.git
-clone_latest builder https://github.com/henrypp/builder.git
+clone_latest simplewall https://github.com/henrypp/simplewall.git SIMPLEWALL_SHA
+clone_latest routine https://github.com/henrypp/routine.git ROUTINE_SHA
+clone_latest builder https://github.com/henrypp/builder.git BUILDER_SHA
 
 {
 	echo "# Vendored Henry++ trees. Refresh with tools/update-from-upstream.sh"
-	printf 'simplewall %s https://github.com/henrypp/simplewall.git\n' "$(sha_of https://github.com/henrypp/simplewall.git)"
-	printf 'routine %s https://github.com/henrypp/routine.git\n' "$(sha_of https://github.com/henrypp/routine.git)"
-	printf 'builder %s https://github.com/henrypp/builder.git\n' "$(sha_of https://github.com/henrypp/builder.git)"
+	printf 'simplewall %s https://github.com/henrypp/simplewall.git\n' "$SIMPLEWALL_SHA"
+	printf 'routine %s https://github.com/henrypp/routine.git\n' "$ROUTINE_SHA"
+	printf 'builder %s https://github.com/henrypp/builder.git\n' "$BUILDER_SHA"
 } > "$ROOT/UPSTREAM"
 
 echo "Updated:"
 cat "$ROOT/UPSTREAM"
 
-if [[ ! -f "$ROOT/simplewall/simplewall.sln" || ! -f "$ROOT/routine/src/routine.c" || ! -f "$ROOT/builder/build.bat" ]]; then
-	echo "Layout check failed after update." >&2
-	exit 1
-fi
-
-echo "Layout check OK."
+bash "$ROOT/tools/check-layout.sh"
