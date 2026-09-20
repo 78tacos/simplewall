@@ -211,3 +211,134 @@ static inline NTSTATUS sw_compat_createthread (
 }
 
 #define _r_sys_createthread sw_compat_createthread
+
+#define _r_fs_getsize _r_fs_getsize2
+#define _r_fs_openfile(out, path, access, share, options, dir) \
+	_r_fs_openfile ((PR_STRINGREF)(path), (access), (share), (options), (dir), (out))
+#define _r_fs_createfile(out, path, disposition, access, share, attributes, options, dir, size) \
+	_r_fs_createfile ((PR_STRINGREF)(path), (disposition), (access), (share), (attributes), (options), (dir), (size), (out))
+#define _r_sys_decompressbuffer(out, format, buffer) \
+	_r_sys_decompressbuffer ((format), (buffer), (out))
+#define _r_sys_compressbuffer(out, format, buffer) \
+	_r_sys_compressbuffer ((format), (buffer), (out))
+#define _r_str_environmentexpandstring(out, environment, name) \
+	_r_str_environmentexpandstring ((environment), (PR_STRINGREF)(name), (out))
+#define _r_crypt_getfilehash(out, algorithm, path, file) \
+	_r_crypt_getfilehash ((algorithm), (PR_STRINGREF)(path), (file), (out))
+#define _r_reg_openkey(out, root, path, flags, access) \
+	_r_reg_openkey ((root), (LPWSTR)(path), (flags), (access), (out))
+#define _r_res_loadresource(out, module, type, name, language) \
+	_r_res_loadresource ((module), (type), (name), (language), (out))
+#define _r_imagelist_getsystem(out, size) _r_imagelist_getsystem ((size), (out))
+#define _r_sys_getservicesid(out, name) _r_sys_getservicesid ((LPWSTR)(name), (out))
+#define _r_sys_getusername(out, sid, domain) _r_sys_getusername ((PSID)(sid), (domain), (out))
+#define _r_sys_getprocessimagepathbyid(out, pid, dos) \
+	_r_sys_getprocessimagepathbyid (ULongToHandle (pid), (dos), (out))
+#define _r_sys_loadlibraryasresource(out, name) \
+	_r_sys_loadlibraryasresource ((PR_STRINGREF)(name), (PVOID_PTR)(out))
+#define _r_str_fromguid(out, guid, upper) _r_str_fromguid ((LPGUID)(guid), (upper), (out))
+#define _r_unixtime_to_filetime(out, time) _r_unixtime_to_filetime ((time), (out))
+#define _r_path_geticon(path, icon, index) _r_path_geticon ((PR_STRINGREF)(path), (index), (icon))
+
+#define _r_obj_isbyteempty(value) (!(value) || !(value)->length)
+#define _r_path_isnetwork(path) \
+	((path)->length >= 2 * sizeof (WCHAR) && (path)->buffer[0] == L'\\' && (path)->buffer[1] == L'\\')
+#define _r_wnd_topzoder _r_wnd_top
+#define _r_wnd_sendcommand _r_ctrl_sendcommand
+#define _r_button_setcheck _r_ctrl_checkbutton
+#define _r_button_checkradio _r_ctrl_checkradio
+#define _r_button_ischecked _r_ctrl_isbuttonchecked
+#define _r_button_isradiochecked _r_ctrl_isradiochecked
+#define _r_button_seticon _r_ctrl_seticon
+#define _r_button_setmargins _r_ctrl_setbuttonmargins
+#define _r_tooltip_create _r_ctrl_createtip
+#define _r_tooltip_settext _r_ctrl_settiptext
+#define _r_edit_setmargin _r_ctrl_settextmargin
+#define _r_edit_setreadonly _r_ctrl_setreadonly
+#define _r_edit_showballoontip _r_ctrl_showballoontip
+#define _r_updown_setacceleration _r_ctrl_setacceleration
+#define _r_menu_addseparator(menu) AppendMenuW ((menu), MF_SEPARATOR, 0, NULL)
+#define _r_rebar_getinfo(hwnd, id, index, info) \
+	_r_wnd_sendmessage ((hwnd), (id), RB_GETBANDINFOW, (index), (LPARAM)(info))
+#define _r_rebar_setinfo(hwnd, id, index, info) \
+	_r_wnd_sendmessage ((hwnd), (id), RB_SETBANDINFOW, (index), (LPARAM)(info))
+#define _r_toolbar_getidealsize(hwnd, id, height, size) \
+	_r_wnd_sendmessage ((hwnd), (id), TB_GETIDEALSIZE, (height), (LPARAM)(size))
+#define _r_sys_terminatethread NtTerminateThread
+#define _r_listview_scroll(hwnd, id, position) \
+	_r_wnd_sendmessage ((hwnd), (id), LVM_SCROLL, 0, (position))
+
+static inline NTSTATUS sw_compat_setpos (
+	_In_ HANDLE file,
+	_In_ LONG64 value
+)
+{
+	LARGE_INTEGER position;
+
+	position.QuadPart = value;
+
+	return _r_fs_setpos (file, &position);
+}
+
+#define _r_fs_setpos sw_compat_setpos
+
+static inline BOOLEAN sw_compat_invertboolean (
+	_In_ LPCWSTR key,
+	_In_ BOOLEAN fallback,
+	_In_opt_ LPCWSTR section
+)
+{
+	BOOLEAN value;
+
+	value = !_r_config_getboolean_ex (key, fallback, section);
+
+	_r_config_setboolean_ex (key, value, section);
+
+	return value;
+}
+
+#define _r_config_invertboolean sw_compat_invertboolean
+
+static inline LONG sw_compat_drive (
+	_In_ PCR_STRINGREF path
+)
+{
+	WCHAR letter;
+
+	if (path->length < 2 * sizeof (WCHAR) || path->buffer[1] != L':')
+		return INT_ERROR;
+
+	letter = path->buffer[0];
+
+	if (letter >= L'a' && letter <= L'z')
+		return letter - L'a';
+
+	return (letter >= L'A' && letter <= L'Z') ? (letter - L'A') : INT_ERROR;
+}
+
+#define _r_path_getdrivenumber sw_compat_drive
+
+static inline NTSTATUS sw_compat_hardlink (
+	_In_ PCR_STRINGREF source,
+	_In_ PCR_STRINGREF destination
+)
+{
+	PR_STRING from_path;
+	PR_STRING to_path;
+	NTSTATUS status;
+
+	from_path = _r_obj_createstring2 ((PR_STRINGREF)source);
+	to_path = _r_obj_createstring2 ((PR_STRINGREF)destination);
+
+	status = CreateHardLinkW (to_path->buffer, from_path->buffer, NULL) ?
+		STATUS_SUCCESS :
+		_r_sys_doserrortontstatus (GetLastError ());
+
+	_r_obj_dereference (from_path);
+	_r_obj_dereference (to_path);
+
+	return status;
+}
+
+#define _r_fs_createhardlink sw_compat_hardlink
+
