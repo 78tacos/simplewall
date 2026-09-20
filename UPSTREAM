@@ -1,0 +1,4 @@
+# Vendored Henry++ trees. Refresh with tools/update-from-upstream.sh
+simplewall 482893bcd8fca69c419795cd169dba4c09ef2de9 https://github.com/henrypp/simplewall.git
+routine 1acd9394395b7cee9e1ea7b985fb54e76be86b11 https://github.com/henrypp/routine.git
+builder 74d1faba0a75feda417313909c96b256fae7e79f https://github.com/henrypp/builder.git
