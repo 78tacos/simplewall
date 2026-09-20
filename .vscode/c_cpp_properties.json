@@ -1,0 +1,28 @@
+{
+  "configurations": [
+    {
+      "name": "simplewall (Win64 IntelliSense)",
+      "includePath": [
+        "${workspaceFolder}/simplewall/src",
+        "${workspaceFolder}/routine/src"
+      ],
+      "defines": [
+        "UNICODE",
+        "_UNICODE",
+        "_WIN64",
+        "WIN32_LEAN_AND_MEAN",
+        "SECURITY_WIN32",
+        "APP_HAVE_TRAY",
+        "APP_HAVE_SETTINGS",
+        "APP_HAVE_AUTORUN",
+        "APP_HAVE_SKIPUAC",
+        "APP_HAVE_UPDATES",
+        "APP_NO_GUEST"
+      ],
+      "cStandard": "c17",
+      "cppStandard": "c++20",
+      "intelliSenseMode": "windows-msvc-x64"
+    }
+  ],
+  "version": 4
+}

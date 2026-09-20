@@ -1,0 +1,60 @@
+name: Build
+
+on:
+  push:
+    branches: [master, "cursor/**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  layout:
+    name: Check sibling layout
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+      - name: Verify simplewall / routine / builder
+        run: bash tools/check-layout.sh
+
+  windows:
+    name: MSVC Release x64
+    runs-on: windows-latest
+    needs: layout
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Find MSBuild
+        uses: microsoft/setup-msbuild@v2
+        with:
+          vs-prerelease: true
+
+      - name: Restore CppWinRT
+        working-directory: simplewall
+        run: nuget restore packages.config -PackagesDirectory packages
+
+      - name: Build Release x64
+        working-directory: simplewall
+        run: >
+          msbuild simplewall.sln
+          -p:Configuration=Release
+          -p:Platform=x64
+          -p:RestorePackages=false
+          -p:TreatWarningAsError=false
+          -m
+          -verbosity:minimal
+
+      - name: Upload simplewall.exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: simplewall-x64
+          path: |
+            simplewall/bin/64/simplewall.exe
+          if-no-files-found: error
