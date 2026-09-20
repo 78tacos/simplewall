@@ -350,3 +350,162 @@ static inline NTSTATUS sw_compat_hardlink (
 
 #define _r_fs_createhardlink sw_compat_hardlink
 
+// Public routine: _r_str_gethash(LPWSTR) / _r_str_gethash2(PR_STRINGREF).
+// simplewall 3.9.1 calls them swapped.
+static inline ULONG sw_compat_str_gethash (
+	_In_ PR_STRINGREF string,
+	_In_ BOOLEAN is_ignorecase
+)
+{
+	return _r_str_gethash2 (string, is_ignorecase);
+}
+
+static inline ULONG sw_compat_str_gethash2 (
+	_In_ LPCWSTR string,
+	_In_ BOOLEAN is_ignorecase
+)
+{
+	R_STRINGREF sr;
+
+	_r_obj_initializestringref (&sr, (LPWSTR)string);
+
+	return _r_str_gethash2 (&sr, is_ignorecase);
+}
+
+#define _r_str_gethash sw_compat_str_gethash
+#define _r_str_gethash2 sw_compat_str_gethash2
+
+static inline VOID sw_compat_filedialog_setpath (
+	_Inout_ PR_FILE_DIALOG file_dialog,
+	_In_ PR_STRINGREF path
+)
+{
+	_r_filedialog_setpath (file_dialog, path->buffer);
+}
+
+#define _r_filedialog_setpath sw_compat_filedialog_setpath
+
+static inline VOID sw_compat_filetime2largeinteger (
+	_Out_ PLARGE_INTEGER out_buffer,
+	_In_ PFILETIME file_time
+)
+{
+	_r_calc_filetime2largeinteger (file_time, out_buffer);
+}
+
+#define _r_calc_filetime2largeinteger sw_compat_filetime2largeinteger
+
+static inline BOOLEAN sw_compat_enumhashtable (
+	_In_ PR_HASHTABLE hashtable,
+	_Out_opt_ PVOID_PTR entry_ptr,
+	_Out_opt_ PULONG hash_code_ptr,
+	_Inout_ PULONG_PTR enum_key
+)
+{
+	ULONG_PTR hash_code = 0;
+	BOOLEAN result;
+
+	result = _r_obj_enumhashtable (hashtable, entry_ptr, hash_code_ptr ? &hash_code : NULL, enum_key);
+
+	if (hash_code_ptr)
+		*hash_code_ptr = (ULONG)hash_code;
+
+	return result;
+}
+
+static inline BOOLEAN sw_compat_enumhashtablepointer (
+	_In_ PR_HASHTABLE hashtable,
+	_Out_opt_ PVOID_PTR entry_ptr,
+	_Out_opt_ PULONG hash_code_ptr,
+	_Inout_ PULONG_PTR enum_key
+)
+{
+	ULONG_PTR hash_code = 0;
+	BOOLEAN result;
+
+	result = _r_obj_enumhashtablepointer (hashtable, entry_ptr, hash_code_ptr ? &hash_code : NULL, enum_key);
+
+	if (hash_code_ptr)
+		*hash_code_ptr = (ULONG)hash_code;
+
+	return result;
+}
+
+#define _r_obj_enumhashtable sw_compat_enumhashtable
+#define _r_obj_enumhashtablepointer sw_compat_enumhashtablepointer
+
+static inline INT sw_compat_menu_popup (
+	_In_ HMENU hmenu,
+	_In_ HWND hwnd,
+	_In_opt_ PPOINT point,
+	_In_ LPARAM send_or_subitem
+)
+{
+	return _r_menu_popup (hmenu, hwnd, point, send_or_subitem != 0);
+}
+
+#define _r_menu_popup sw_compat_menu_popup
+
+static inline VOID sw_compat_update_addcomponent (
+	_In_ LPCWSTR full_name,
+	_In_ LPCWSTR short_name,
+	_In_ LPCWSTR version,
+	_In_ PR_STRINGREF target_path,
+	_In_ BOOLEAN is_installer
+)
+{
+	_r_update_addcomponent (full_name, short_name, version, (PR_STRING)target_path, is_installer);
+}
+
+#define _r_update_addcomponent sw_compat_update_addcomponent
+
+static inline NTSTATUS sw_compat_path_makebackup (
+	_In_ PR_STRINGREF path,
+	_In_ BOOLEAN is_removesourcefile
+)
+{
+	return _r_path_makebackup ((PR_STRING)path, is_removesourcefile);
+}
+
+#define _r_path_makebackup sw_compat_path_makebackup
+
+static inline PR_STRINGREF sw_compat_getimagepath (
+	VOID
+)
+{
+	static R_STRINGREF sr;
+	PUNICODE_STRING image;
+
+	image = &NtCurrentPeb ()->ProcessParameters->ImagePathName;
+	sr.buffer = image->Buffer;
+	sr.length = image->Length;
+
+	return &sr;
+}
+
+#define _r_sys_getimagepath sw_compat_getimagepath
+
+static inline VOID sw_compat_listview_setstyle (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_In_opt_ LONG_PTR ex_style,
+	_In_ BOOL is_groupview
+)
+{
+	_r_listview_setstyle (hwnd, ctrl_id, (ULONG)ex_style, is_groupview);
+}
+
+#define _r_listview_setstyle sw_compat_listview_setstyle
+
+static inline VOID sw_compat_menu_setitemtext (
+	_In_ HMENU hmenu,
+	_In_ UINT item_id,
+	_In_ BOOLEAN is_byposition,
+	_In_ LPCWSTR string
+)
+{
+	_r_menu_setitemtext (hmenu, item_id, is_byposition, (LPWSTR)string);
+}
+
+#define _r_menu_setitemtext sw_compat_menu_setitemtext
+

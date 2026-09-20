@@ -211,7 +211,7 @@ VOID _app_network_initialize (
 		status = udp_stats_start (network_context->udp_stats);
 
 		if (status != STATUS_SUCCESS && status != STATUS_ALREADY_INITIALIZED)
-			_r_log (LOG_LEVEL_WARNING, NULL, L"udp_stats_start", NULL, status);
+			_r_log (LOG_LEVEL_WARNING, NULL, L"udp_stats_start", status, NULL);
 	}
 
 	_r_queuedlock_acquireexclusive (&network_context->lock_network);
