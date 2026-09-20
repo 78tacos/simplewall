@@ -13,6 +13,8 @@ workspace/
 
 `simplewall.vcxproj` already compiles `..\routine\src\routine.c` and `..\routine\src\rapp.c`. The `build*.bat` scripts already `cd ..\builder`. This layout matches that.
 
+The public `routine` repo and current simplewall are not the same private SDK revision Henry++ builds with. `simplewall/src/include/routine-compat.h` maps the published helpers (section-aware `*_ex` config APIs, `PCR_STRINGREF`, and a few renamed calls) so the tree can compile.
+
 ## What is pinned
 
 | Directory | Upstream | Version / commit |

@@ -20,6 +20,7 @@ require simplewall/packages.config
 require simplewall/src/main.c
 require simplewall/src/wfp.c
 require simplewall/src/resource.rc
+require simplewall/src/include/routine-compat.h
 require builder/build.bat
 require builder/build_locale.bat
 require builder/src/build_package.py
