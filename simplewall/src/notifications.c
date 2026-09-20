@@ -3,12 +3,99 @@
 
 #include "global.h"
 
+static BOOLEAN _app_notify_isforegroundfullscreen ()
+{
+	QUERY_USER_NOTIFICATION_STATE state = QUNS_NOT_PRESENT;
+	MONITORINFO monitor_info = {0};
+	HWND hwnd;
+	HMONITOR hmonitor;
+	RECT window_rect;
+	RECT covered;
+	LONG_PTR style;
+	LONG_PTR ex_style;
+
+	if (_r_wnd_isfullscreenmode ())
+		return TRUE;
+
+	if (SUCCEEDED (SHQueryUserNotificationState (&state)))
+	{
+		if (state == QUNS_NOT_PRESENT ||
+			state == QUNS_BUSY ||
+			state == QUNS_RUNNING_D3D_FULL_SCREEN ||
+			state == QUNS_PRESENTATION_MODE)
+		{
+			return TRUE;
+		}
+	}
+
+	hwnd = GetForegroundWindow ();
+
+	if (!hwnd || hwnd == _r_app_gethwnd ())
+		return FALSE;
+
+	if (hwnd == (HWND)_InterlockedCompareExchangePointer ((volatile PVOID_PTR)&config.hnotification, NULL, NULL))
+		return FALSE;
+
+	if (_r_wnd_isdesktop (hwnd))
+		return FALSE;
+
+	if (!GetWindowRect (hwnd, &window_rect))
+		return FALSE;
+
+	hmonitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONULL);
+
+	if (!hmonitor)
+		return FALSE;
+
+	monitor_info.cbSize = sizeof (monitor_info);
+
+	if (!GetMonitorInfoW (hmonitor, &monitor_info))
+		return FALSE;
+
+	if (!IntersectRect (&covered, &window_rect, &monitor_info.rcMonitor))
+		return FALSE;
+
+	if (covered.left > monitor_info.rcMonitor.left ||
+		covered.top > monitor_info.rcMonitor.top ||
+		covered.right < monitor_info.rcMonitor.right ||
+		covered.bottom < monitor_info.rcMonitor.bottom)
+	{
+		return FALSE;
+	}
+
+	style = _r_wnd_getstyle (hwnd, GWL_STYLE);
+	ex_style = _r_wnd_getstyle (hwnd, GWL_EXSTYLE);
+
+	if (ex_style & WS_EX_TOOLWINDOW)
+		return FALSE;
+
+	// Maximized desktop windows keep a caption; borderless games usually do not.
+	if ((style & WS_CAPTION) && (style & WS_MAXIMIZE))
+		return FALSE;
+
+	if ((style & WS_POPUP) || !(style & WS_CAPTION))
+		return TRUE;
+
+	return FALSE;
+}
+
+static BOOLEAN _app_notify_isfullscreensilent ()
+{
+	if (!_r_config_getboolean (L"IsNotificationsFullscreenSilentMode", TRUE, NULL))
+		return FALSE;
+
+	return _app_notify_isforegroundfullscreen ();
+}
+
 _Ret_maybenull_
 HWND _app_notify_getwindow (
 	_In_opt_ PITEM_LOG ptr_log
 )
 {
 	HWND hwnd = (HWND)_InterlockedCompareExchangePointer ((volatile PVOID_PTR)&config.hnotification, NULL, NULL);
+
+	if (ptr_log && _app_notify_isfullscreensilent ())
+		return hwnd;
 
 	if (hwnd)
 	{
@@ -126,6 +213,9 @@ BOOLEAN _app_notify_addobject (
 {
 	LONG64 current_time, notification_timeout;
 
+	if (_app_notify_isfullscreensilent ())
+		return FALSE;
+
 	notification_timeout = _r_config_getlong64 (L"NotificationsTimeout", NOTIFY_TIMEOUT_DEFAULT, NULL);
 	current_time = _r_unixtime_now ();
 
@@ -139,7 +229,7 @@ BOOLEAN _app_notify_addobject (
 
 	if (_r_wnd_sendmessage (hwnd, 0, WM_NOTIFICATION, 0, (LPARAM)ptr_app->notification))
 	{
-		if (_r_config_getboolean (L"IsNotificationsSound", TRUE, NULL) && (!_r_config_getboolean (L"IsNotificationsFullscreenSilentMode", TRUE, NULL) || !_r_wnd_isfullscreenmode ()))
+		if (_r_config_getboolean (L"IsNotificationsSound", TRUE, NULL) && (!_r_config_getboolean (L"IsNotificationsFullscreenSilentMode", TRUE, NULL) || !_app_notify_isforegroundfullscreen ()))
 			_app_notify_playsound ();
 
 		return TRUE;
@@ -370,11 +460,10 @@ VOID _app_notify_show (
 	_r_ctrl_setstring (hwnd, IDC_ALLOW_BTN, _r_locale_getstring (IDS_ACTION_ALLOW));
 	_r_ctrl_setstring (hwnd, IDC_BLOCK_BTN, _r_locale_getstring (IDS_ACTION_BLOCK));
 
-	// prevent fullscreen apps lose focus
-	is_fullscreenmode = _r_wnd_isfullscreenmode ();
+	SetWindowLongPtrW (hwnd, GWL_EXSTYLE, _r_wnd_getstyle (hwnd, GWL_EXSTYLE) | WS_EX_NOACTIVATE);
 
-	if (!is_fullscreenmode)
-		_r_wnd_top (hwnd, TRUE);
+	// prevent fullscreen apps / games from losing focus
+	is_fullscreenmode = _app_notify_isforegroundfullscreen ();
 
 	// set safety timeout
 	_app_notify_settimeout (hwnd);
@@ -382,7 +471,17 @@ VOID _app_notify_show (
 	// set correct position
 	_app_notify_setposition (hwnd, FALSE);
 
-	ShowWindow (hwnd, SW_SHOWNA);
+	if (_r_config_getboolean (L"IsNotificationsFullscreenSilentMode", TRUE, NULL) && is_fullscreenmode)
+	{
+		ShowWindow (hwnd, SW_HIDE);
+	}
+	else
+	{
+		if (!is_fullscreenmode)
+			_r_wnd_top (hwnd, TRUE);
+
+		ShowWindow (hwnd, SW_SHOWNOACTIVATE);
+	}
 
 	InvalidateRect (hwnd, NULL, TRUE);
 
