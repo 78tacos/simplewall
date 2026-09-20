@@ -20,6 +20,10 @@ typedef const SID *PCSID;
 #define GENERAL_ID 0x53575554U
 #endif
 
+#ifndef INT_ERROR
+#define INT_ERROR (-1)
+#endif
+
 #ifndef IN6_IS_ADDR_ULA
 #define IN6_IS_ADDR_ULA(address) ((((const BYTE *)(address))[0] & 0xFE) == 0xFC)
 #endif
@@ -234,6 +238,10 @@ static inline NTSTATUS sw_compat_createthread (
 #define _r_sys_getusername(out, sid, domain) _r_sys_getusername ((PSID)(sid), (domain), (out))
 #define _r_sys_getprocessimagepathbyid(out, pid, dos) \
 	_r_sys_getprocessimagepathbyid (ULongToHandle (pid), (dos), (out))
+#define _r_sys_openprocess(out, pid, access) \
+	_r_sys_openprocess (ULongToHandle (pid), (access), (out))
+#define _r_sys_querytaginformation(pid, tag) \
+	_r_sys_querytaginformation (ULongToHandle (pid), (tag))
 #define _r_sys_loadlibraryasresource(out, name) \
 	_r_sys_loadlibraryasresource ((PR_STRINGREF)(name), (PVOID_PTR)(out))
 #define _r_str_fromguid(out, guid, upper) _r_str_fromguid ((LPGUID)(guid), (upper), (out))

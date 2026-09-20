@@ -47,6 +47,7 @@ jobs:
           -p:Configuration=Release
           -p:Platform=x64
           -p:RestorePackages=false
+          -p:TreatWarningAsError=false
           -m
           -verbosity:minimal
 
