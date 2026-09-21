@@ -64,6 +64,7 @@ typedef enum _ENUM_INFO_DATA
 	INFO_COMMENT,
 	INFO_HASH,
 	INFO_TIMESTAMP,
+	INFO_LAST_CONNECT,
 	INFO_TIMER,
 	INFO_LISTVIEW_ID,
 	INFO_DISABLE,
@@ -119,7 +120,31 @@ typedef enum _ENUM_INFO_DATA2
 	L"\"simplewall.exe -install -temp\" - enable filtering until reboot." SZ_CRLF \
 	L"\"simplewall.exe -install -silent\" - enable filtering without prompt." SZ_CRLF \
 	L"\"simplewall.exe -uninstall\" - remove all installed filters." SZ_CRLF \
-	L"\"simlewall.exe -help\" - show this message."
+	L"\"simplewall.exe -enable <path>\" - allow an app by path." SZ_CRLF \
+	L"\"simplewall.exe -disable <path>\" - disable an app by path." SZ_CRLF \
+	L"\"simplewall.exe -help\" - show this message."
+
+#define FILTER_TOGGLE_HOTKEY_ID 1
+#define GAME_MODE_HOTKEY_ID 2
+#define FOLDER_ENUM_MAX_DEPTH 4
+#define FOLDER_ENUM_MAX_FILES 512
+
+#define THEME_MODE_SYSTEM 0
+#define THEME_MODE_LIGHT 1
+#define THEME_MODE_DARK 2
+#define THEME_MODE_CYBER 3 // dark + ice-blue cyber palette
+#define THEME_MODE_ALBUQUERQUE 4 // dark + southwestern desert palette
+
+// App list category groups (apps tabs)
+#define APP_GROUP_SYSTEM 0
+#define APP_GROUP_BROWSERS 1
+#define APP_GROUP_GAMES 2
+#define APP_GROUP_COMMUNICATION 3
+#define APP_GROUP_MEDIA 4
+#define APP_GROUP_DEVELOPMENT 5
+#define APP_GROUP_PRODUCTIVITY 6
+#define APP_GROUP_OTHER 7
+#define APP_GROUP_COUNT 8
 
 #define DIVIDER_COPY L", "
 #define DIVIDER_APP L"|"
@@ -154,13 +179,13 @@ typedef enum _ENUM_INFO_DATA2
 #define NOTIFY_SOUND_NAME L"MailBeep"
 
 // default colors
-#define LV_COLOR_INVALID RGB(0xFF, 0x7C, 0x94)
-#define LV_COLOR_SPECIAL RGB(0xFF, 0xFF, 0xAA)
-#define LV_COLOR_SIGNED RGB(0xAE, 0xE4, 0xA2)
-#define LV_COLOR_PICO RGB(0x32, 0x98, 0xFF)
-#define LV_COLOR_SYSTEM RGB(0x96, 0xC4, 0xFA)
-#define LV_COLOR_CONNECTION RGB(0xFF, 0xA8, 0xF2)
-#define LV_COLOR_UNDELETE RGB(0xD4, 0xD4, 0xD4)
+#define LV_COLOR_INVALID RGB(0xE8, 0x8A, 0x9C)
+#define LV_COLOR_SPECIAL RGB(0xE8, 0xE0, 0xA0)
+#define LV_COLOR_SIGNED RGB(0x9A, 0xD4, 0x96)
+#define LV_COLOR_PICO RGB(0x6C, 0xB6, 0xF5)
+#define LV_COLOR_SYSTEM RGB(0x8C, 0xB4, 0xE8)
+#define LV_COLOR_CONNECTION RGB(0xE0, 0xA8, 0xDC)
+#define LV_COLOR_UNDELETE RGB(0xC0, 0xC0, 0xC0)
 
 // memory limitation for 1 rule
 #define RULE_NAME_CCH_MAX 0x0040 // 64
@@ -225,6 +250,9 @@ typedef struct _STATIC_DATA
 	ULONG svchost_hash;
 	ULONG wusvc_hash;
 	ULONG my_hash;
+
+	IUnknown *fw_registration;
+	PR_ARRAY allowall_guids;
 
 	BOOLEAN is_filterstemporary;
 	BOOLEAN is_neteventenabled;
@@ -306,6 +334,7 @@ typedef struct _ITEM_APP
 	PTP_TIMER htimer;
 
 	LONG64 last_notify;
+	LONG64 last_connect;
 	LONG64 timestamp;
 	LONG64 timer;
 
@@ -321,7 +350,8 @@ typedef struct _ITEM_APP
 		ULONG is_haveerrors : 1;
 		ULONG is_enabled : 1;
 		ULONG is_silent : 1;
-		ULONG spare_bits : 28;
+		ULONG is_folder : 1;
+		ULONG spare_bits : 27;
 	} DUMMYSTRUCTNAME;
 } ITEM_APP, *PITEM_APP;
 

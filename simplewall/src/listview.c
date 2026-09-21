@@ -590,122 +590,101 @@ VOID _app_listview_refreshgroups (
 	_In_ INT listview_id
 )
 {
-	WCHAR buffer1[0x80], buffer2[0x80];
-	ULONG group1_title = 0, group2_title = 0, group3_title = 0, group4_title = 0, group5_title = 0;
-	INT group1_count = 0, group2_count = 0, group3_count = 0, group4_count = 0, group5_count = 0, total_count, group_id;
+	WCHAR buffer[0x80];
+	INT counts[APP_GROUP_COUNT] = {0};
+	INT total_count;
+	INT group_id;
+	INT i;
+	UINT locale_id;
+	BOOLEAN is_apps;
 	BOOLEAN is_rules;
 
 	if (!_r_listview_isgroupviewenabled (hwnd, listview_id))
 		return;
 
+	is_apps = (listview_id >= IDC_APPS_PROFILE && listview_id <= IDC_APPS_UWP);
 	is_rules = (listview_id >= IDC_RULES_BLOCKLIST && listview_id <= IDC_RULES_CUSTOM);
 
-	if (listview_id >= IDC_APPS_PROFILE && listview_id <= IDC_APPS_UWP)
-	{
-		group1_title = IDS_GROUP_ALLOWED;
-		group2_title = IDS_GROUP_TIMER;
-		group3_title = IDS_GROUP_SPECIAL_APPS;
-		group4_title = IDS_GROUP_BLOCKED;
-		group5_title = IDS_GROUP_BLOCKED;
-	}
-	else if (is_rules)
-	{
-		group1_title = IDS_GROUP_ENABLED;
-		group2_title = IDS_GROUP_ENABLED;
-		group3_title = IDS_GROUP_DISABLED;
-	}
-	else if (listview_id == IDC_RULE_APPS_ID || listview_id == IDC_NETWORK)
-	{
-		group1_title = IDS_TAB_APPS;
-		group2_title = IDS_TAB_SERVICES;
-		group3_title = IDS_TAB_PACKAGES;
-	}
-	else if (listview_id == IDC_APP_RULES_ID)
-	{
-		group1_title = IDS_TRAY_SYSTEM_RULES;
-		group2_title = IDS_TRAY_USER_RULES;
-	}
-	else
-	{
-		return; // unknown listview!
-	}
+	if (!is_apps && !is_rules && listview_id != IDC_RULE_APPS_ID && listview_id != IDC_NETWORK && listview_id != IDC_APP_RULES_ID)
+		return;
 
 	total_count = _r_listview_getitemcount (hwnd, listview_id);
 
-	for (INT i = 0; i < total_count; i++)
+	for (i = 0; i < total_count; i++)
 	{
 		if (listview_id == IDC_RULE_APPS_ID || listview_id == IDC_APP_RULES_ID)
 		{
 			if (_r_listview_isitemchecked (hwnd, listview_id, i))
-				group1_count = group2_count = group3_count += 1;
+				counts[0] = counts[1] = counts[2] += 1;
 		}
 		else
 		{
 			group_id = _r_listview_getitemgroup (hwnd, listview_id, i);
 
-			if (group_id == 4)
-			{
-				group5_count += 1;
-			}
-			else if (group_id == 3)
-			{
-				group4_count += 1;
-			}
-			else if (group_id == 2)
-			{
-				group3_count += 1;
-			}
-			else if (group_id == 1)
-			{
-				group2_count += 1;
-			}
-			else if (group_id == 0)
-			{
-				group1_count += 1;
-			}
+			if (group_id >= 0 && group_id < APP_GROUP_COUNT)
+				counts[group_id] += 1;
 		}
 	}
 
-	if (total_count)
+	if (!total_count)
+		return;
+
+	if (is_apps)
 	{
-		// set group 1 and 2 titles
-		if (is_rules)
+		for (i = 0; i < APP_GROUP_COUNT; i++)
 		{
-			_r_str_printf (buffer1, RTL_NUMBER_OF (buffer1), L"%s (%d/%d) [%s]", _r_locale_getstring (group1_title), group1_count, total_count, _r_locale_getstring (IDS_RULE_FOR_ALL));
-			_r_str_printf (buffer2, RTL_NUMBER_OF (buffer2), L"%s (%d/%d) [%s]", _r_locale_getstring (group2_title), group2_count, total_count, _r_locale_getstring (IDS_RULE_FOR_ALL));
-		}
-		else
-		{
-			_r_str_printf (buffer1, RTL_NUMBER_OF (buffer1), L"%s (%d/%d)", _r_locale_getstring (group1_title), group1_count, total_count);
-			_r_str_printf (buffer2, RTL_NUMBER_OF (buffer2), L"%s (%d/%d)", _r_locale_getstring (group2_title), group2_count, total_count);
-		}
+			locale_id = _app_getappcategorylocale (i);
 
-		_r_listview_setgroup (hwnd, listview_id, 0, buffer1, 0, 0);
-		_r_listview_setgroup (hwnd, listview_id, 1, buffer2, 0, 0);
-
-		// set group 3 title
-		if (group3_title)
-		{
-			_r_str_printf (buffer1, RTL_NUMBER_OF (buffer1), L"%s (%d/%d)", _r_locale_getstring (group3_title), group3_count, total_count);
-
-			_r_listview_setgroup (hwnd, listview_id, 2, buffer1, 0, 0);
+			if (counts[i])
+			{
+				_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%s (%d/%d)", _r_locale_getstring (locale_id), counts[i], total_count);
+				_r_listview_setgroup (hwnd, listview_id, i, buffer, 0, 0);
+			}
+			else
+			{
+				_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%s", _r_locale_getstring (locale_id));
+				_r_listview_setgroup (hwnd, listview_id, i, buffer, LVGS_COLLAPSED | LVGS_HIDDEN | LVGS_NOHEADER, LVGS_COLLAPSED | LVGS_HIDDEN | LVGS_NOHEADER);
+			}
 		}
 
-		// set group 4 title
-		if (group4_title)
-		{
-			_r_str_printf (buffer1, RTL_NUMBER_OF (buffer1), L"%s (%d/%d)", _r_locale_getstring (group4_title), group4_count, total_count);
+		return;
+	}
 
-			_r_listview_setgroup (hwnd, listview_id, 3, buffer1, 0, 0);
-		}
+	if (is_rules)
+	{
+		_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%s (%d/%d) [%s]", _r_locale_getstring (IDS_GROUP_ENABLED), counts[0], total_count, _r_locale_getstring (IDS_RULE_FOR_ALL));
+		_r_listview_setgroup (hwnd, listview_id, 0, buffer, 0, 0);
 
-		// set group 5 title
-		if (group5_title)
-		{
-			_r_str_printf (buffer1, RTL_NUMBER_OF (buffer1), L"%s (%d/%d) [silent]", _r_locale_getstring (group5_title), group5_count, total_count);
+		_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%s (%d/%d) [%s]", _r_locale_getstring (IDS_GROUP_ENABLED), counts[1], total_count, _r_locale_getstring (IDS_RULE_FOR_ALL));
+		_r_listview_setgroup (hwnd, listview_id, 1, buffer, 0, 0);
 
-			_r_listview_setgroup (hwnd, listview_id, 4, buffer1, 0, 0);
-		}
+		_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%s (%d/%d)", _r_locale_getstring (IDS_GROUP_DISABLED), counts[2], total_count);
+		_r_listview_setgroup (hwnd, listview_id, 2, buffer, 0, 0);
+
+		return;
+	}
+
+	if (listview_id == IDC_RULE_APPS_ID || listview_id == IDC_NETWORK)
+	{
+		_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%s (%d/%d)", _r_locale_getstring (IDS_TAB_APPS), counts[0], total_count);
+		_r_listview_setgroup (hwnd, listview_id, 0, buffer, 0, 0);
+
+		_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%s (%d/%d)", _r_locale_getstring (IDS_TAB_SERVICES), counts[1], total_count);
+		_r_listview_setgroup (hwnd, listview_id, 1, buffer, 0, 0);
+
+		_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%s (%d/%d)", _r_locale_getstring (IDS_TAB_PACKAGES), counts[2], total_count);
+		_r_listview_setgroup (hwnd, listview_id, 2, buffer, 0, 0);
+
+		return;
+	}
+
+	if (listview_id == IDC_APP_RULES_ID)
+	{
+		_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%s (%d/%d)", _r_locale_getstring (IDS_TRAY_SYSTEM_RULES), counts[0], total_count);
+		_r_listview_setgroup (hwnd, listview_id, 0, buffer, 0, 0);
+
+		_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%s (%d/%d)", _r_locale_getstring (IDS_TRAY_USER_RULES), counts[1], total_count);
+		_r_listview_setgroup (hwnd, listview_id, 1, buffer, 0, 0);
 	}
 }
 
@@ -758,8 +737,8 @@ VOID _app_listview_resize (
 
 	dpi_value = _r_dc_getwindowdpi (hwnd);
 
-	max_width = _r_dc_getdpi (158, dpi_value);
-	spacing = _r_dc_getsystemmetrics (SM_CXSMICON, dpi_value);
+	max_width = _r_dc_getdpi (180, dpi_value);
+	spacing = _r_dc_getsystemmetrics (SM_CXSMICON, dpi_value) + _r_dc_getdpi (12, dpi_value);
 
 	total_width = _r_ctrl_getwidth (hwnd, listview_id);
 	item_count = _r_listview_getitemcount (hwnd, listview_id);
@@ -852,13 +831,17 @@ VOID _app_listview_setview (
 )
 {
 	HIMAGELIST himg = NULL;
+	HWND hlistview;
 	LONG icons_size, view_type;
+	LONG icon_cx, icon_cy, spacing;
+	LONG dpi_value;
 	BOOLEAN is_mainview;
 
 	is_mainview = (listview_id >= IDC_APPS_PROFILE && listview_id <= IDC_RULES_CUSTOM);
 
+	// Prefer large icons by default for more breathing room
 	view_type = is_mainview ? _r_calc_clamp (_r_config_getlong (L"ViewType", LV_VIEW_DETAILS, NULL), LV_VIEW_ICON, LV_VIEW_MAX) : LV_VIEW_DETAILS;
-	icons_size = is_mainview ? _r_calc_clamp (_r_config_getlong (L"IconSize", SHIL_SMALL, NULL), SHIL_LARGE, SHIL_LAST) : SHIL_SMALL;
+	icons_size = is_mainview ? _r_calc_clamp (_r_config_getlong (L"IconSize", SHIL_LARGE, NULL), SHIL_LARGE, SHIL_LAST) : SHIL_SMALL;
 
 	if ((listview_id >= IDC_RULES_BLOCKLIST && listview_id <= IDC_RULES_CUSTOM) || listview_id == IDC_APP_RULES_ID)
 	{
@@ -873,6 +856,33 @@ VOID _app_listview_setview (
 		_r_listview_setimagelist (hwnd, listview_id, himg);
 
 	_r_listview_setview (hwnd, listview_id, view_type);
+
+	// Extra spacing around icons in icon/tile views
+	hlistview = GetDlgItem (hwnd, listview_id);
+
+	if (hlistview && (view_type == LV_VIEW_ICON || view_type == LV_VIEW_TILE || view_type == LV_VIEW_SMALLICON))
+	{
+		dpi_value = _r_dc_getwindowdpi (hwnd);
+		spacing = _r_dc_getdpi (20, dpi_value);
+
+		if (icons_size == SHIL_EXTRALARGE)
+		{
+			icon_cx = _r_dc_getsystemmetrics (SM_CXICON, dpi_value) * 2;
+			icon_cy = _r_dc_getsystemmetrics (SM_CYICON, dpi_value) * 2;
+		}
+		else if (icons_size == SHIL_LARGE)
+		{
+			icon_cx = _r_dc_getsystemmetrics (SM_CXICON, dpi_value);
+			icon_cy = _r_dc_getsystemmetrics (SM_CYICON, dpi_value);
+		}
+		else
+		{
+			icon_cx = _r_dc_getsystemmetrics (SM_CXSMICON, dpi_value);
+			icon_cy = _r_dc_getsystemmetrics (SM_CYSMICON, dpi_value);
+		}
+
+		_r_wnd_sendmessage (hlistview, 0, LVM_SETICONSPACING, 0, MAKELPARAM (icon_cx + spacing, icon_cy + spacing));
+	}
 }
 
 INT CALLBACK _app_listview_compare_callback (
@@ -949,6 +959,41 @@ INT CALLBACK _app_listview_compare_callback (
 					result = 1;
 				}
 			}
+		}
+		else if ((listview_id >= IDC_APPS_PROFILE && listview_id <= IDC_APPS_UWP) && column_id == 2)
+		{
+			if (_app_getappinfobyhash (context1, INFO_LAST_CONNECT, &timestamp1, sizeof (LONG64)) &&
+				_app_getappinfobyhash (context2, INFO_LAST_CONNECT, &timestamp2, sizeof (LONG64)))
+			{
+				if (timestamp1 < timestamp2)
+				{
+					result = -1;
+				}
+				else if (timestamp1 > timestamp2)
+				{
+					result = 1;
+				}
+			}
+		}
+		else if ((listview_id >= IDC_APPS_PROFILE && listview_id <= IDC_APPS_UWP) && column_id == 3)
+		{
+			PR_STRING comment1 = NULL;
+			PR_STRING comment2 = NULL;
+
+			_app_getappinfobyhash (context1, INFO_COMMENT, &comment1, sizeof (PR_STRING));
+			_app_getappinfobyhash (context2, INFO_COMMENT, &comment2, sizeof (PR_STRING));
+
+			result = _r_str_compare (
+				comment1 ? comment1->buffer : L"",
+				comment2 ? comment2->buffer : L"",
+				TRUE
+			);
+
+			if (comment1)
+				_r_obj_dereference (comment1);
+
+			if (comment2)
+				_r_obj_dereference (comment2);
 		}
 		else if (listview_id == IDC_LOG && column_id == 1)
 		{

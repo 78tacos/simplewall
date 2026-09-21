@@ -37,7 +37,7 @@ Features:
 - Localization support
 - IPv6 support
 
-To activate portable mode, create "simplewall.ini" in application folder, or move it from "%APPDATA%\Henry++\simplewall".
+To activate portable mode, create "simplewall.ini" in application folder, or move it from "%APPDATA%\simplewall\simplewall".
 
 Installation:
 When install rules, you can choose two modes:
@@ -54,7 +54,6 @@ Command line:
 -install -silent - enable filtering without prompt.
 -uninstall - remove all installed filters.
 
-Website: https://github.com/henrypp
-Support: sforce5@mail.ru
+Website: https://github.com/78tacos/simplewall
 
-(c) 2016-2026 Henry++
+Based on the original simplewall by Henry++.

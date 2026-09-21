@@ -11,6 +11,8 @@ FORCEINLINE VOID _app_message_uninitialize (
 	_In_ HWND hwnd
 )
 {
+	UnregisterHotKey (hwnd, FILTER_TOGGLE_HOTKEY_ID);
+	UnregisterHotKey (hwnd, GAME_MODE_HOTKEY_ID);
 	_r_tray_destroy (hwnd, &GUID_TrayIcon);
 }
 
@@ -121,6 +123,10 @@ VOID _app_command_properties (
 );
 
 VOID _app_command_purgeunused (
+	_In_ HWND hwnd
+);
+
+VOID _app_command_purgeinvalid (
 	_In_ HWND hwnd
 );
 

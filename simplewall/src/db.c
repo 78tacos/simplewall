@@ -249,6 +249,17 @@ VOID _app_db_parse_app (
 				if (timer)
 					_app_setappinfo (ptr_app, INFO_TIMER, &timer);
 
+				timestamp = _r_xml_getattribute_long64 (&db_info->xml_library, L"last_connect");
+
+				if (timestamp)
+					_app_setappinfo (ptr_app, INFO_LAST_CONNECT, &timestamp);
+
+				if (_r_xml_getattribute_boolean (&db_info->xml_library, L"is_folder") ||
+					(ptr_app->real_path && _r_fs_isdirectory (&ptr_app->real_path->sr)))
+				{
+					ptr_app->is_folder = TRUE;
+				}
+
 				string = _r_xml_getattribute_string (&db_info->xml_library, L"hash");
 
 				if (string)
@@ -996,6 +1007,12 @@ VOID _app_db_save_app (
 
 		if (ptr_app->timestamp)
 			_r_xml_setattribute_long64 (&db_info->xml_library, L"timestamp", ptr_app->timestamp);
+
+		if (ptr_app->last_connect)
+			_r_xml_setattribute_long64 (&db_info->xml_library, L"last_connect", ptr_app->last_connect);
+
+		if (ptr_app->is_folder)
+			_r_xml_setattribute_boolean (&db_info->xml_library, L"is_folder", TRUE);
 
 		// set timer (if presented)
 		if (ptr_app->timer && _app_istimerset (ptr_app))

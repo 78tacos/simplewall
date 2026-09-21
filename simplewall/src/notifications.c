@@ -81,6 +81,9 @@ static BOOLEAN _app_notify_isforegroundfullscreen ()
 
 static BOOLEAN _app_notify_isfullscreensilent ()
 {
+	if (_r_config_getboolean (L"IsGameModeEnabled", FALSE, NULL))
+		return TRUE;
+
 	if (!_r_config_getboolean (L"IsNotificationsFullscreenSilentMode", TRUE, NULL))
 		return FALSE;
 
@@ -229,7 +232,7 @@ BOOLEAN _app_notify_addobject (
 
 	if (_r_wnd_sendmessage (hwnd, 0, WM_NOTIFICATION, 0, (LPARAM)ptr_app->notification))
 	{
-		if (_r_config_getboolean (L"IsNotificationsSound", TRUE, NULL) && (!_r_config_getboolean (L"IsNotificationsFullscreenSilentMode", TRUE, NULL) || !_app_notify_isforegroundfullscreen ()))
+		if (_r_config_getboolean (L"IsNotificationsSound", TRUE, NULL) && !_r_config_getboolean (L"IsGameModeEnabled", FALSE, NULL) && (!_r_config_getboolean (L"IsNotificationsFullscreenSilentMode", TRUE, NULL) || !_app_notify_isforegroundfullscreen ()))
 			_app_notify_playsound ();
 
 		return TRUE;
@@ -471,7 +474,7 @@ VOID _app_notify_show (
 	// set correct position
 	_app_notify_setposition (hwnd, FALSE);
 
-	if (_r_config_getboolean (L"IsNotificationsFullscreenSilentMode", TRUE, NULL) && is_fullscreenmode)
+	if (_r_config_getboolean (L"IsGameModeEnabled", FALSE, NULL) || (_r_config_getboolean (L"IsNotificationsFullscreenSilentMode", TRUE, NULL) && is_fullscreenmode))
 	{
 		ShowWindow (hwnd, SW_HIDE);
 	}
@@ -877,9 +880,25 @@ VOID _app_notify_drawgradient (
 	_In_ LPCRECT rect
 )
 {
-	COLORREF gradient_arr[] = {RGB (0, 68, 112), RGB (7, 111, 95)};
+	COLORREF accent;
+	COLORREF gradient_arr[2];
 	GRADIENT_RECT gradient_rect = {0};
 	TRIVERTEX trivertx[2] = {0};
+
+	accent = _r_theme_getaccentcolor ();
+
+	if (_app_theme_isenabled ())
+	{
+		// Fluent dark: surface → accent
+		gradient_arr[0] = _r_theme_getbg2color ();
+		gradient_arr[1] = accent;
+	}
+	else
+	{
+		// Light: soft accent wash → slightly deeper accent
+		gradient_arr[0] = _app_color_blend (accent, RGB (0xF3, 0xF3, 0xF3), 35);
+		gradient_arr[1] = _r_dc_getcolorshade (accent, 85);
+	}
 
 	static_assert (RTL_NUMBER_OF (gradient_arr) == RTL_NUMBER_OF (trivertx), "Invalid array size!");
 
@@ -1521,6 +1540,86 @@ INT_PTR CALLBACK NotificationProc (
 						_r_obj_dereference (app_name);
 
 					_r_obj_dereference (rule_name);
+					_r_obj_dereference (ptr_rule);
+					_r_obj_dereference (ptr_log);
+					_r_obj_dereference (ptr_app);
+
+					break;
+				}
+
+				case IDM_NOTIFY_BLOCKHOST:
+				{
+					PR_STRING host_string;
+					PITEM_RULE ptr_rule;
+					PITEM_APP ptr_app;
+					PITEM_LOG ptr_log;
+					PR_LIST rules;
+					HWND hmain;
+					ULONG_PTR rule_idx;
+
+					ptr_log = _app_notify_getobject (_app_notify_getapp_id (hwnd));
+
+					if (!ptr_log)
+						break;
+
+					ptr_app = _app_getappitem (ptr_log->app_hash);
+
+					if (!ptr_app)
+					{
+						_r_obj_dereference (ptr_log);
+						break;
+					}
+
+					if (!_r_obj_isstringempty (ptr_log->remote_host_str))
+					{
+						host_string = _r_obj_reference (ptr_log->remote_host_str);
+					}
+					else
+					{
+						host_string = _app_formataddress (ptr_log->af, 0, &ptr_log->remote_addr, 0, FMTADDR_AS_RULE);
+					}
+
+					if (_r_obj_isstringempty (host_string))
+					{
+						if (host_string)
+							_r_obj_dereference (host_string);
+
+						_r_obj_dereference (ptr_log);
+						_r_obj_dereference (ptr_app);
+						break;
+					}
+
+					ptr_rule = _app_addrule (host_string, host_string, NULL, FWP_DIRECTION_OUTBOUND, FWP_ACTION_BLOCK, 0, ptr_log->af);
+
+					_r_obj_addhashtableitem (ptr_rule->apps, ptr_log->app_hash, NULL);
+
+					_app_ruleenable (ptr_rule, TRUE, FALSE);
+
+					_r_queuedlock_acquireexclusive (&lock_rules);
+					_r_obj_addlistitem (rules_list, _r_obj_reference (ptr_rule), &rule_idx);
+					_r_queuedlock_releaseexclusive (&lock_rules);
+
+					hmain = _r_app_gethwnd ();
+
+					if (hmain)
+					{
+						_app_listview_addruleitem (hmain, ptr_rule, rule_idx, TRUE);
+						_app_listview_updateby_id (hmain, DATA_LISTVIEW_CURRENT, PR_UPDATE_TYPE);
+					}
+
+					if (_wfp_isfiltersinstalled ())
+					{
+						rules = _r_obj_createlist (0x02, NULL);
+
+						_r_obj_addlistitem (rules, ptr_rule, NULL);
+						_wfp_createrulefilters (_wfp_getenginehandle (), rules, DBG_ARG, FALSE);
+						_r_obj_dereference (rules);
+					}
+
+					_app_profile_save (hwnd);
+					_app_notify_freeobject (hwnd, ptr_app);
+
+					_r_obj_dereference (host_string);
 					_r_obj_dereference (ptr_rule);
 					_r_obj_dereference (ptr_log);
 					_r_obj_dereference (ptr_app);

@@ -80,12 +80,41 @@ BOOLEAN _app_getappinfo (
 			break;
 		}
 
+		case INFO_COMMENT:
+		{
+			PVOID ptr;
+
+			if (length != sizeof (PR_STRING))
+				return FALSE;
+
+			if (ptr_app->comment)
+			{
+				ptr = _r_obj_reference (ptr_app->comment);
+
+				RtlCopyMemory (buffer, &ptr, length);
+
+				return TRUE;
+			}
+
+			break;
+		}
+
 		case INFO_TIMESTAMP:
 		{
 			if (length != sizeof (LONG64))
 				return FALSE;
 
 			RtlCopyMemory (buffer, &ptr_app->timestamp, length);
+
+			return TRUE;
+		}
+
+		case INFO_LAST_CONNECT:
+		{
+			if (length != sizeof (LONG64))
+				return FALSE;
+
+			RtlCopyMemory (buffer, &ptr_app->last_connect, length);
 
 			return TRUE;
 		}
@@ -229,6 +258,16 @@ BOOLEAN _app_setappinfo (
 				return FALSE;
 
 			ptr_app->timestamp = *((PLONG64)value);
+
+			return TRUE;
+		}
+
+		case INFO_LAST_CONNECT:
+		{
+			if (!value)
+				return FALSE;
+
+			ptr_app->last_connect = *((PLONG64)value);
 
 			return TRUE;
 		}
@@ -414,13 +453,23 @@ PITEM_APP _app_addapplication (
 	WCHAR path_full[0x400];
 	R_STRINGREF path_sr;
 	PITEM_APP ptr_app;
+	PR_STRING normalized = NULL;
 	ULONG app_hash;
 	BOOLEAN is_ntoskrnl;
+	BOOLEAN is_directory = FALSE;
 
-	if (_r_obj_isstringempty2 (path) || (_app_isappvalidpath (path) && _r_fs_isdirectory (&path->sr)))
+	if (_r_obj_isstringempty2 (path))
 		return NULL;
 
-	_r_obj_initializestringref2 (&path_sr, &path->sr);
+	normalized = _app_normalizeapppath (path);
+
+	if (normalized)
+		_r_obj_initializestringref2 (&path_sr, &normalized->sr);
+	else
+		_r_obj_initializestringref2 (&path_sr, &path->sr);
+
+	if (_app_isappvalidpath (normalized ? normalized : path) && _r_fs_isdirectory (&path_sr))
+		is_directory = TRUE;
 
 	// prevent possible duplicate apps entries with short path (issue #640)
 	if (_r_str_findchar (&path_sr, L'~', FALSE) != SIZE_MAX)
@@ -432,7 +481,12 @@ PITEM_APP _app_addapplication (
 	app_hash = _r_str_gethash (&path_sr, TRUE);
 
 	if (_app_isappfound (app_hash))
+	{
+		if (normalized)
+			_r_obj_dereference (normalized);
+
 		return _app_getappitem (app_hash); // already exists
+	}
 
 	ptr_app = (PITEM_APP)_r_obj_allocate (sizeof (ITEM_APP), &_app_dereferenceapp);
 	is_ntoskrnl = (app_hash == config.ntoskrnl_hash);
@@ -491,6 +545,10 @@ PITEM_APP _app_addapplication (
 
 	ptr_app->guids = _r_obj_createarray (sizeof (GUID), 0x02, NULL); // initialize guids array
 	ptr_app->timestamp = _r_unixtime_now ();
+	ptr_app->is_folder = is_directory;
+
+	if (normalized)
+		_r_obj_dereference (normalized);
 
 	// insert object into the table
 	//_r_queuedlock_acquireexclusive (&lock_apps);
@@ -1359,6 +1417,14 @@ BOOLEAN _app_isappexists (
 	{
 		case DATA_APP_REGULAR:
 		{
+			if (ptr_app->is_folder)
+			{
+				if (ptr_app->real_path && !_r_fs_isdirectory (&ptr_app->real_path->sr))
+					return FALSE;
+
+				return TRUE;
+			}
+
 			if (ptr_app->real_path && !_r_fs_isexists (&ptr_app->real_path->sr))
 				return FALSE;
 

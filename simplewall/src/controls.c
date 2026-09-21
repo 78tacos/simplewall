@@ -643,14 +643,16 @@ VOID _app_setinterfacestate (
 	HICON hicon_large, hicon_small;
 	LONG icon_id, icon_large, icon_small;
 	BOOLEAN is_filtersinstalled;
+	BOOLEAN is_gamemode;
 
 	install_type = _wfp_getinstalltype ();
 	is_filtersinstalled = (install_type != INSTALL_DISABLED);
+	is_gamemode = _r_config_getboolean (L"IsGameModeEnabled", FALSE, NULL);
 
 	icon_small = _r_dc_getsystemmetrics (SM_CXSMICON, dpi_value);
 	icon_large = _r_dc_getsystemmetrics (SM_CXICON, dpi_value);
 
-	icon_id = _app_getstateicon (install_type);
+	icon_id = is_gamemode ? IDI_GAMEMODE : _app_getstateicon (install_type);
 
 	hicon_small = _r_sys_loadsharedicon (_r_sys_getimagebase (), MAKEINTRESOURCE (icon_id), icon_small);
 	hicon_large = _r_sys_loadsharedicon (_r_sys_getimagebase (), MAKEINTRESOURCE (icon_id), icon_large);
@@ -660,7 +662,21 @@ VOID _app_setinterfacestate (
 	//_r_status_seticon (hwnd, IDC_STATUSBAR, 0, hicon_small);
 
 	if (!_wfp_isfiltersapplying ())
-		_r_status_settext (hwnd, IDC_STATUSBAR, 0, _app_getstatelocale (install_type));
+	{
+		WCHAR status_text[128];
+		LPCWSTR state_text;
+
+		state_text = _app_getstatelocale (install_type);
+
+		if (is_gamemode && state_text)
+			_r_str_printf (status_text, RTL_NUMBER_OF (status_text), L"%s (game mode)", state_text);
+		else if (state_text)
+			_r_str_copy (status_text, RTL_NUMBER_OF (status_text), state_text);
+		else
+			status_text[0] = UNICODE_NULL;
+
+		_r_status_settext (hwnd, IDC_STATUSBAR, 0, status_text);
+	}
 
 	_r_toolbar_setbutton (config.hrebar, IDC_TOOLBAR, IDM_TRAY_START, _app_getstateaction (install_type), BTNS_BUTTON | BTNS_AUTOSIZE | BTNS_SHOWTEXT, 0, is_filtersinstalled ? 1 : 0);
 
@@ -672,14 +688,79 @@ VOID _app_settrayicon (
 	_In_ ENUM_INSTALL_TYPE install_type
 )
 {
+	WCHAR tip[128];
 	HICON hicon;
 	LONG icon_size;
+	LONG icon_id;
+	BOOLEAN is_gamemode;
+	BOOLEAN is_allowall;
+
+	is_gamemode = _r_config_getboolean (L"IsGameModeEnabled", FALSE, NULL);
+	is_allowall = _r_config_getboolean (L"IsTempAllowAll", FALSE, NULL);
 
 	icon_size = _r_dc_getsystemmetrics (SM_CXSMICON, _r_dc_gettaskbardpi ());
+	icon_id = is_gamemode ? IDI_GAMEMODE : _app_getstateicon (install_type);
+	hicon = _r_sys_loadsharedicon (_r_sys_getimagebase (), MAKEINTRESOURCE (icon_id), icon_size);
 
-	hicon = _r_sys_loadsharedicon (_r_sys_getimagebase (), MAKEINTRESOURCE (_app_getstateicon (install_type)), icon_size);
+	if (is_gamemode && is_allowall)
+		_r_str_printf (tip, RTL_NUMBER_OF (tip), L"%s (game-mode, allow-all)", _r_app_getname ());
+	else if (is_gamemode)
+		_r_str_printf (tip, RTL_NUMBER_OF (tip), L"%s (game-mode)", _r_app_getname ());
+	else if (is_allowall)
+		_r_str_printf (tip, RTL_NUMBER_OF (tip), L"%s (allow-all)", _r_app_getname ());
+	else
+		_r_str_copy (tip, RTL_NUMBER_OF (tip), _r_app_getname ());
 
-	_r_tray_setinfo (hwnd, &GUID_TrayIcon, hicon, _r_app_getname ());
+	_r_tray_setinfo (hwnd, &GUID_TrayIcon, hicon, tip);
+}
+
+// Convert colorful PNG glyphs to light Fluent monochrome (dark chrome).
+static VOID _app_bitmap_makefluentglyph (
+	_In_ HBITMAP hbmp
+)
+{
+	DIBSECTION ds = {0};
+	PULONG pixels;
+	ULONG count;
+	ULONG i;
+	ULONG px;
+	BYTE a;
+	BYTE lum;
+	BYTE v;
+
+	if (!hbmp)
+		return;
+
+	if (!GetObject (hbmp, sizeof (ds), &ds))
+		return;
+
+	if (!ds.dsBm.bmBits || ds.dsBm.bmBitsPixel != 32)
+		return;
+
+	pixels = (PULONG)ds.dsBm.bmBits;
+	count = (ULONG)(ds.dsBm.bmWidth * abs (ds.dsBm.bmHeight));
+
+	for (i = 0; i < count; i++)
+	{
+		px = pixels[i];
+		a = (BYTE)((px >> 24) & 0xFF);
+
+		if (a < 10)
+		{
+			pixels[i] = 0;
+			continue;
+		}
+
+		lum = (BYTE)((
+			((px >> 16) & 0xFF) * 30 + // R (BGRA)
+			((px >> 8) & 0xFF) * 59 +  // G
+			(px & 0xFF) * 11           // B
+			) / 100);
+
+		// Soft light glyph (not pure white) so it sits on Fluent charcoal
+		v = (BYTE)(160 + (lum * 95) / 255);
+		pixels[i] = ((ULONG)a << 24) | ((ULONG)v << 16) | ((ULONG)v << 8) | v;
+	}
 }
 
 VOID _app_imagelist_init (
@@ -691,17 +772,41 @@ VOID _app_imagelist_init (
 	ULONG rules_ids[] = {IDP_ALLOW, IDP_BLOCK};
 	HBITMAP hbitmap;
 	LONG size_large, size_small, size_toolbar;
+	BOOLEAN is_dark;
 	NTSTATUS status;
+
+	UNREFERENCED_PARAMETER (hwnd);
 
 	SAFE_DELETE_OBJECT (config.hbmp_enable);
 	SAFE_DELETE_OBJECT (config.hbmp_disable);
 	SAFE_DELETE_OBJECT (config.hbmp_allow);
 	SAFE_DELETE_OBJECT (config.hbmp_block);
 
+	if (config.himg_toolbar)
+	{
+		_r_imagelist_destroy (config.himg_toolbar);
+		config.himg_toolbar = NULL;
+	}
+
+	if (config.himg_rules_small)
+	{
+		_r_imagelist_destroy (config.himg_rules_small);
+		config.himg_rules_small = NULL;
+	}
+
+	if (config.himg_rules_large)
+	{
+		_r_imagelist_destroy (config.himg_rules_large);
+		config.himg_rules_large = NULL;
+	}
+
+	is_dark = _app_theme_isenabled ();
+
 	size_small = _r_dc_getsystemmetrics (SM_CXSMICON, dpi_value);
 	size_large = _r_dc_getsystemmetrics (SM_CXICON, dpi_value);
 
-	size_toolbar = _r_calc_clamp (_r_dc_getdpi (_r_config_getlong (L"ToolbarSize", PR_SIZE_ITEMHEIGHT, NULL), dpi_value), size_small, size_large);
+	// Slightly larger default toolbar glyphs for Fluent/Cyber chrome
+	size_toolbar = _r_calc_clamp (_r_dc_getdpi (_r_config_getlong (L"ToolbarSize", 24, NULL), dpi_value), size_small, size_large);
 
 	_r_res_loadimage (&config.hbmp_enable, _r_sys_getimagebase (), L"PNG", MAKEINTRESOURCE (IDP_SHIELD_ENABLE), &GUID_ContainerFormatPng, size_small, size_small);
 	_r_res_loadimage (&config.hbmp_disable, _r_sys_getimagebase (), L"PNG", MAKEINTRESOURCE (IDP_SHIELD_DISABLE), &GUID_ContainerFormatPng, size_small, size_small);
@@ -709,15 +814,15 @@ VOID _app_imagelist_init (
 	_r_res_loadimage (&config.hbmp_allow, _r_sys_getimagebase (), L"PNG", MAKEINTRESOURCE (IDP_ALLOW), &GUID_ContainerFormatPng, size_small, size_small);
 	_r_res_loadimage (&config.hbmp_block, _r_sys_getimagebase (), L"PNG", MAKEINTRESOURCE (IDP_BLOCK), &GUID_ContainerFormatPng, size_small, size_small);
 
-	// toolbar imagelist
-	if (config.himg_toolbar)
+	if (is_dark)
 	{
-		_r_imagelist_setsize (config.himg_toolbar, size_toolbar, size_toolbar);
+		_app_bitmap_makefluentglyph (config.hbmp_enable);
+		_app_bitmap_makefluentglyph (config.hbmp_disable);
+		_app_bitmap_makefluentglyph (config.hbmp_allow);
+		_app_bitmap_makefluentglyph (config.hbmp_block);
 	}
-	else
-	{
-		_r_imagelist_create (&config.himg_toolbar, size_toolbar, size_toolbar, ILC_COLOR32 | ILC_HIGHQUALITYSCALE, RTL_NUMBER_OF (toolbar_ids), RTL_NUMBER_OF (toolbar_ids));
-	}
+
+	_r_imagelist_create (&config.himg_toolbar, size_toolbar, size_toolbar, ILC_COLOR32 | ILC_HIGHQUALITYSCALE, RTL_NUMBER_OF (toolbar_ids), RTL_NUMBER_OF (toolbar_ids));
 
 	if (config.himg_toolbar)
 	{
@@ -725,23 +830,21 @@ VOID _app_imagelist_init (
 		{
 			status = _r_res_loadimage (&hbitmap, _r_sys_getimagebase (), L"PNG", MAKEINTRESOURCE (toolbar_ids[i]), &GUID_ContainerFormatPng, size_toolbar, size_toolbar);
 
-			if (NT_SUCCESS (status))
+			if (NT_SUCCESS (status) && hbitmap)
+			{
+				if (is_dark)
+					_app_bitmap_makefluentglyph (hbitmap);
+
 				_r_imagelist_add (config.himg_toolbar, hbitmap, NULL, NULL);
+				DeleteObject (hbitmap);
+			}
 		}
 	}
 
 	if (config.htoolbar)
 		_r_toolbar_setimagelist (config.htoolbar, 0, config.himg_toolbar);
 
-	// rules imagelist (small)
-	if (config.himg_rules_small)
-	{
-		_r_imagelist_setsize (config.himg_rules_small, size_small, size_small);
-	}
-	else
-	{
-		_r_imagelist_create (&config.himg_rules_small, size_small, size_small, ILC_COLOR32 | ILC_HIGHQUALITYSCALE, RTL_NUMBER_OF (rules_ids), RTL_NUMBER_OF (rules_ids));
-	}
+	_r_imagelist_create (&config.himg_rules_small, size_small, size_small, ILC_COLOR32 | ILC_HIGHQUALITYSCALE, RTL_NUMBER_OF (rules_ids), RTL_NUMBER_OF (rules_ids));
 
 	if (config.himg_rules_small)
 	{
@@ -749,20 +852,18 @@ VOID _app_imagelist_init (
 		{
 			status = _r_res_loadimage (&hbitmap, _r_sys_getimagebase (), L"PNG", MAKEINTRESOURCE (rules_ids[i]), &GUID_ContainerFormatPng, size_small, size_small);
 
-			if (NT_SUCCESS (status))
+			if (NT_SUCCESS (status) && hbitmap)
+			{
+				if (is_dark)
+					_app_bitmap_makefluentglyph (hbitmap);
+
 				_r_imagelist_add (config.himg_rules_small, hbitmap, NULL, NULL);
+				DeleteObject (hbitmap);
+			}
 		}
 	}
 
-	// rules imagelist (large)
-	if (config.himg_rules_large)
-	{
-		_r_imagelist_setsize (config.himg_rules_large, size_large, size_large);
-	}
-	else
-	{
-		_r_imagelist_create (&config.himg_rules_large, size_large, size_large, ILC_COLOR32 | ILC_HIGHQUALITYSCALE, RTL_NUMBER_OF (rules_ids), RTL_NUMBER_OF (rules_ids));
-	}
+	_r_imagelist_create (&config.himg_rules_large, size_large, size_large, ILC_COLOR32 | ILC_HIGHQUALITYSCALE, RTL_NUMBER_OF (rules_ids), RTL_NUMBER_OF (rules_ids));
 
 	if (config.himg_rules_large)
 	{
@@ -770,8 +871,14 @@ VOID _app_imagelist_init (
 		{
 			status = _r_res_loadimage (&hbitmap, _r_sys_getimagebase (), L"PNG", MAKEINTRESOURCE (rules_ids[i]), &GUID_ContainerFormatPng, size_large, size_large);
 
-			if (NT_SUCCESS (status))
+			if (NT_SUCCESS (status) && hbitmap)
+			{
+				if (is_dark)
+					_app_bitmap_makefluentglyph (hbitmap);
+
 				_r_imagelist_add (config.himg_rules_large, hbitmap, NULL, NULL);
+				DeleteObject (hbitmap);
+			}
 		}
 	}
 }
@@ -930,9 +1037,9 @@ VOID _app_toolbar_resize (
 		}
 		else if (rbi.wID == REBAR_SEARCH_ID)
 		{
-			rbi.cxIdeal = _r_wnd_isvisible (rbi.hwndChild, FALSE) ? (UINT)_r_dc_getdpi (180, dpi_value) : 0;
+			rbi.cxIdeal = _r_wnd_isvisible (rbi.hwndChild, FALSE) ? (UINT)_r_dc_getdpi (200, dpi_value) : 0;
 			rbi.cxMinChild = rbi.cxIdeal;
-			rbi.cyMinChild = 20;
+			rbi.cyMinChild = 22;
 		}
 		else
 		{

@@ -3,6 +3,8 @@
 
 #include "global.h"
 
+#include <oleauto.h>
+
 // there is russian documentation on how WFP works:
 // https://www.cyberforum.ru/drivers-programming/thread1298567.html
 HANDLE _wfp_getenginehandle ()
@@ -857,6 +859,9 @@ VOID _wfp_destroyfilters (
 
 	_wfp_clearfilter_ids ();
 
+	if (config.allowall_guids)
+		_r_obj_cleararray (config.allowall_guids);
+
 	// destroy all filters
 	_r_queuedlock_acquireshared (&lock_transaction);
 	status = _wfp_dumpfilters (engine_handle, &GUID_WfpProvider, &guids);
@@ -878,12 +883,18 @@ VOID _wfp_destroyfilters_array (
 )
 {
 	LPCGUID guid;
-	BOOLEAN is_enabled, is_intransact;
+	BOOLEAN is_enabled = FALSE;
+	BOOLEAN is_intransact;
+	BOOLEAN skip_ui;
 
 	if (_r_obj_isempty2 (guids))
 		return;
 
-	is_enabled = _app_initinterfacestate (_r_app_gethwnd (), FALSE);
+	// Nested calls from the apply thread must not touch the toolbar state.
+	skip_ui = _wfp_isfiltersapplying ();
+
+	if (!skip_ui)
+		is_enabled = _app_initinterfacestate (_r_app_gethwnd (), FALSE);
 
 	_r_queuedlock_acquireshared (&lock_transaction);
 
@@ -910,7 +921,8 @@ VOID _wfp_destroyfilters_array (
 
 	_r_queuedlock_releaseshared (&lock_transaction);
 
-	_app_restoreinterfacestate (_r_app_gethwnd (), is_enabled);
+	if (!skip_ui)
+		_app_restoreinterfacestate (_r_app_gethwnd (), is_enabled);
 
 	_r_obj_cleararray (guids);
 }
@@ -1424,6 +1436,14 @@ BOOLEAN _wfp_createappfilters (
 
 	is_enabled = _app_initinterfacestate (_r_app_gethwnd (), FALSE);
 
+	for (ULONG_PTR i = 0; i < _r_obj_getlistsize (rules); i++)
+	{
+		ptr_app = (PITEM_APP)_r_obj_getlistitem (rules, i);
+
+		if (ptr_app && ptr_app->is_folder)
+			_app_collectfolderapps (ptr_app, rules);
+	}
+
 	if (!is_intransact)
 	{
 		for (ULONG_PTR i = 0; i < _r_obj_getlistsize (rules); i++)
@@ -1463,7 +1483,7 @@ BOOLEAN _wfp_createappfilters (
 	{
 		ptr_app = (PITEM_APP)_r_obj_getlistitem (rules, i);
 
-		if (ptr_app && ptr_app->is_enabled)
+		if (ptr_app && ptr_app->is_enabled && !ptr_app->is_folder)
 		{
 			string = _app_getappdisplayname (ptr_app, TRUE);
 
@@ -2022,15 +2042,23 @@ VOID NTAPI _wfp_applythread (
 	if (context->is_install)
 	{
 		if (_wfp_initialize (context->hwnd, engine_handle))
+		{
 			_wfp_installfilters (engine_handle);
+
+			if (_r_config_getboolean (L"IsTempAllowAll", FALSE, NULL))
+				_wfp_allowall_set (TRUE);
+		}
 	}
 	else
 	{
 		if (_r_sys_isosversiongreaterorequal (WINDOWS_10))
 			_app_wufixenable (context->hwnd, FALSE);
 
+		_wfp_allowall_set (FALSE);
 		_wfp_destroyfilters (engine_handle);
 		_wfp_uninitialize (engine_handle, TRUE);
+
+		config.is_filterstemporary = FALSE;
 	}
 
 	// dropped packets logging (win7+)
@@ -2042,6 +2070,7 @@ VOID NTAPI _wfp_applythread (
 
 	_app_restoreinterfacestate (context->hwnd, TRUE);
 	_app_setinterfacestate (context->hwnd, _r_dc_getwindowdpi (context->hwnd));
+	_app_gamemode_updateui (context->hwnd);
 
 	_r_freelist_deleteitem (&context_free_list, context);
 
@@ -2107,6 +2136,179 @@ BOOLEAN _wfp_firewallisenabled ()
 		return TRUE;
 
 	return FALSE;
+}
+
+VOID _wfp_firewallunregister ()
+{
+	IUnknown *registration;
+
+	registration = (IUnknown *)_InterlockedExchangePointer ((volatile PVOID_PTR)&config.fw_registration, NULL);
+
+	if (registration)
+		IUnknown_Release (registration);
+}
+
+VOID _wfp_allowall_set (
+	_In_ BOOLEAN is_enable
+)
+{
+	HANDLE engine_handle;
+	BOOLEAN was_temporary;
+	BOOLEAN is_intransact;
+
+	if (!config.allowall_guids)
+		config.allowall_guids = _r_obj_createarray (sizeof (GUID), 0x08, NULL);
+
+	if (!is_enable)
+	{
+		if (_r_obj_isempty2 (config.allowall_guids))
+			return;
+
+		if (!_wfp_isfiltersinstalled ())
+		{
+			_r_obj_cleararray (config.allowall_guids);
+			return;
+		}
+
+		_wfp_destroyfilters_array (_wfp_getenginehandle (), config.allowall_guids, DBG_ARG);
+		return;
+	}
+
+	if (!_wfp_isfiltersinstalled ())
+		return;
+
+	// Replace any previous allow-all filters.
+	if (!_r_obj_isempty2 (config.allowall_guids))
+		_wfp_destroyfilters_array (_wfp_getenginehandle (), config.allowall_guids, DBG_ARG);
+
+	engine_handle = _wfp_getenginehandle ();
+
+	// Keep these session-only so a crash cannot leave allow-all rules behind.
+	was_temporary = config.is_filterstemporary;
+	config.is_filterstemporary = TRUE;
+
+	_r_queuedlock_acquireshared (&lock_transaction);
+
+	is_intransact = _wfp_transact_start (engine_handle, DBG_ARG);
+
+	_wfp_createfilter (engine_handle, DATA_FILTER_GENERAL, FWN_GAMEMODE, NULL, 0, &FWPM_LAYER_ALE_AUTH_CONNECT_V4, NULL, FWW_IMPORTANT, FWP_ACTION_PERMIT, 0, config.allowall_guids);
+	_wfp_createfilter (engine_handle, DATA_FILTER_GENERAL, FWN_GAMEMODE, NULL, 0, &FWPM_LAYER_ALE_AUTH_CONNECT_V6, NULL, FWW_IMPORTANT, FWP_ACTION_PERMIT, 0, config.allowall_guids);
+	_wfp_createfilter (engine_handle, DATA_FILTER_GENERAL, FWN_GAMEMODE, NULL, 0, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4, NULL, FWW_IMPORTANT, FWP_ACTION_PERMIT, 0, config.allowall_guids);
+	_wfp_createfilter (engine_handle, DATA_FILTER_GENERAL, FWN_GAMEMODE, NULL, 0, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6, NULL, FWW_IMPORTANT, FWP_ACTION_PERMIT, 0, config.allowall_guids);
+
+	if (is_intransact)
+		_wfp_transact_commit (engine_handle, DBG_ARG);
+
+	_r_queuedlock_releaseshared (&lock_transaction);
+
+	config.is_filterstemporary = was_temporary;
+}
+
+VOID _wfp_firewallregister ()
+{
+	INetFwProducts *products = NULL;
+	INetFwProduct *product = NULL;
+	IUnknown *registration = NULL;
+	SAFEARRAY *categories = NULL;
+	VARIANT category_item;
+	VARIANT categories_var;
+	BSTR display_name = NULL;
+	LONG category;
+	HRESULT status;
+
+	_wfp_firewallunregister ();
+
+	status = CoCreateInstance (&CLSID_NetFwProduct, NULL, CLSCTX_INPROC_SERVER, &IID_INetFwProduct, (PVOID_PTR)&product);
+
+	if (FAILED (status))
+	{
+		_r_log (LOG_LEVEL_INFO, NULL, L"CoCreateInstance", status, L"IID_INetFwProduct");
+		return;
+	}
+
+	display_name = SysAllocString (_r_app_getname ());
+
+	if (!display_name)
+	{
+		status = E_OUTOFMEMORY;
+		goto CleanupExit;
+	}
+
+	status = INetFwProduct_put_DisplayName (product, display_name);
+
+	if (FAILED (status))
+		goto CleanupExit;
+
+	categories = SafeArrayCreateVector (VT_VARIANT, 0, 1);
+
+	if (!categories)
+	{
+		status = E_OUTOFMEMORY;
+		goto CleanupExit;
+	}
+
+	category = NET_FW_RULE_CATEGORY_FIREWALL;
+
+	VariantInit (&category_item);
+	category_item.vt = VT_I4;
+	category_item.lVal = category;
+
+	{
+		LONG index = 0;
+
+		status = SafeArrayPutElement (categories, &index, &category_item);
+	}
+
+	if (FAILED (status))
+		goto CleanupExit;
+
+	VariantInit (&categories_var);
+	categories_var.vt = VT_ARRAY | VT_VARIANT;
+	categories_var.parray = categories;
+
+	status = INetFwProduct_put_RuleCategories (product, categories_var);
+
+	if (FAILED (status))
+		goto CleanupExit;
+
+	SafeArrayDestroy (categories);
+	categories = NULL;
+
+	status = CoCreateInstance (&CLSID_NetFwProducts, NULL, CLSCTX_INPROC_SERVER, &IID_INetFwProducts, (PVOID_PTR)&products);
+
+	if (FAILED (status))
+	{
+		_r_log (LOG_LEVEL_INFO, NULL, L"CoCreateInstance", status, L"IID_INetFwProducts");
+		goto CleanupExit;
+	}
+
+	status = INetFwProducts_Register (products, product, &registration);
+
+	if (FAILED (status))
+	{
+		_r_log (LOG_LEVEL_INFO, NULL, L"INetFwProducts_Register", status, NULL);
+		goto CleanupExit;
+	}
+
+	_InterlockedExchangePointer ((volatile PVOID_PTR)&config.fw_registration, registration);
+	registration = NULL;
+
+CleanupExit:
+
+	if (registration)
+		IUnknown_Release (registration);
+
+	if (products)
+		INetFwProducts_Release (products);
+
+	if (product)
+		INetFwProduct_Release (product);
+
+	if (categories)
+		SafeArrayDestroy (categories);
+
+	if (display_name)
+		SysFreeString (display_name);
 }
 
 _Success_ (NT_SUCCESS (return))
