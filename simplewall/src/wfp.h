@@ -14,6 +14,7 @@ DEFINE_GUID (GUID_WfpSublayer, 0x9FEE6F59, 0xB951, 0x4F9A, 0xB5, 0x2F, 0x13, 0x3
 #define FWN_TCP_RST_ONCLOSE L"BlockTcpRstOnClose"
 #define FWN_BOOTTIME L"BlockBoottime"
 #define FWN_LOOPBACK L"AllowLoopback"
+#define FWN_GAMEMODE L"TempAllowAll"
 
 // sublayer weight
 #define FWW_SUBLAYER 0xFFFF // highest weight for UINT16
@@ -169,6 +170,14 @@ VOID _wfp_firewallenable (
 );
 
 BOOLEAN _wfp_firewallisenabled ();
+
+VOID _wfp_firewallregister ();
+
+VOID _wfp_firewallunregister ();
+
+VOID _wfp_allowall_set (
+	_In_ BOOLEAN is_enable
+);
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _FwpmGetAppIdFromFileName1 (

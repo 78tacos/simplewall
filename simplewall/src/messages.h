@@ -12,6 +12,7 @@ FORCEINLINE VOID _app_message_uninitialize (
 )
 {
 	UnregisterHotKey (hwnd, FILTER_TOGGLE_HOTKEY_ID);
+	UnregisterHotKey (hwnd, GAME_MODE_HOTKEY_ID);
 	_r_tray_destroy (hwnd, &GUID_TrayIcon);
 }
 

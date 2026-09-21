@@ -1121,6 +1121,16 @@ typedef struct _APP_GLOBAL_CONFIG
 	struct
 	{
 		HBRUSH bg_brush;
+		COLORREF accent_clr; // system accent (or palette fallback)
+		COLORREF hot_clr; // hot/hover (accent)
+		COLORREF border_clr; // DWM border (accent)
+		COLORREF bg_clr;
+		COLORREF bg2_clr;
+		COLORREF button_clr;
+		COLORREF highlight_clr;
+		COLORREF text_clr;
+		COLORREF graytext_clr;
+		LONG palette; // 0 fluent, 1 cyber
 	} theme;
 
 	struct

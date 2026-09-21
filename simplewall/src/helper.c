@@ -466,8 +466,20 @@ BOOLEAN _app_getappinfoparam2 (
 			if (ptr_app_info)
 				icon_id = ptr_app_info->icon_id;
 
-			if (!icon_id)
-				icon_id = _app_icons_getdefaultapp_id ((listview_id == IDC_APPS_UWP) ? DATA_APP_UWP : DATA_APP_REGULAR);
+			if (!icon_id || icon_id == _app_icons_getdefault ()->generic_icon_id)
+			{
+				PITEM_APP ptr_app;
+
+				ptr_app = _app_getappitem (app_hash);
+
+				if (ptr_app && _app_isappfromsystem (ptr_app->real_path, app_hash))
+					icon_id = _app_icons_getdefaultsystem_id ();
+				else
+					icon_id = _app_icons_getdefaultapp_id ((listview_id == IDC_APPS_UWP) ? DATA_APP_UWP : DATA_APP_REGULAR);
+
+				if (ptr_app)
+					_r_obj_dereference (ptr_app);
+			}
 
 			if (icon_id)
 			{
@@ -951,9 +963,342 @@ VOID _app_hotkey_update (
 )
 {
 	UnregisterHotKey (hwnd, FILTER_TOGGLE_HOTKEY_ID);
+	UnregisterHotKey (hwnd, GAME_MODE_HOTKEY_ID);
 
 	if (_r_config_getboolean (L"IsFilterToggleHotkey", TRUE, NULL))
 		RegisterHotKey (hwnd, FILTER_TOGGLE_HOTKEY_ID, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, 'F');
+
+	RegisterHotKey (hwnd, GAME_MODE_HOTKEY_ID, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, 'G');
+}
+
+LONG _app_theme_getmode ()
+{
+	return _r_calc_clamp (_r_config_getlong (L"ThemeMode", THEME_MODE_SYSTEM, NULL), THEME_MODE_SYSTEM, THEME_MODE_ALBUQUERQUE);
+}
+
+BOOLEAN _app_theme_isenabled ()
+{
+	LONG mode;
+
+	mode = _app_theme_getmode ();
+
+	if (mode == THEME_MODE_DARK || mode == THEME_MODE_CYBER)
+		return TRUE;
+
+	if (mode == THEME_MODE_LIGHT || mode == THEME_MODE_ALBUQUERQUE)
+		return FALSE;
+
+	return _r_wnd_isdarkmodeenabled ();
+}
+
+COLORREF _app_color_blend (
+	_In_ COLORREF color1,
+	_In_ COLORREF color2,
+	_In_ ULONG percent
+)
+{
+	ULONG inv;
+	BYTE r;
+	BYTE g;
+	BYTE b;
+
+	if (percent >= 100)
+		return color1;
+
+	if (!percent)
+		return color2;
+
+	inv = 100 - percent;
+
+	r = (BYTE)((GetRValue (color1) * percent + GetRValue (color2) * inv) / 100);
+	g = (BYTE)((GetGValue (color1) * percent + GetGValue (color2) * inv) / 100);
+	b = (BYTE)((GetBValue (color1) * percent + GetBValue (color2) * inv) / 100);
+
+	return RGB (r, g, b);
+}
+
+COLORREF _app_color_fordark (
+	_In_ COLORREF color
+)
+{
+	LONG mode;
+
+	mode = _app_theme_getmode ();
+
+	// Soften row highlights against the active surface (dark or pale desert)
+	if (mode == THEME_MODE_ALBUQUERQUE)
+		return _app_color_blend (color, _r_theme_getbgcolor (), 55);
+
+	if (!_app_theme_isenabled ())
+		return color;
+
+	{
+		ULONG blend;
+
+		if (mode == THEME_MODE_CYBER)
+			blend = 48;
+		else
+			blend = 40;
+
+		return _app_color_blend (color, _r_theme_getbgcolor (), blend);
+	}
+}
+
+INT _app_getappcategorygroup (
+	_In_ PITEM_APP ptr_app
+)
+{
+	WCHAR haystack[0x200];
+	LPCWSTR name;
+	LPCWSTR path;
+
+	if (!ptr_app)
+		return APP_GROUP_OTHER;
+
+	if (_app_isappfromsystem (ptr_app->real_path, ptr_app->app_hash))
+		return APP_GROUP_SYSTEM;
+
+	name = _r_obj_getstring (ptr_app->display_name);
+
+	if (!name)
+		name = _r_obj_getstring (ptr_app->short_name);
+
+	path = _r_obj_getstring (ptr_app->real_path);
+
+	haystack[0] = UNICODE_NULL;
+
+	if (name)
+		_r_str_copy (haystack, RTL_NUMBER_OF (haystack), name);
+
+	if (path)
+	{
+		_r_str_append (haystack, RTL_NUMBER_OF (haystack), L" ");
+		_r_str_append (haystack, RTL_NUMBER_OF (haystack), path);
+	}
+
+	CharLowerBuffW (haystack, (DWORD)wcslen (haystack));
+
+	// Browsers
+	if (
+		wcsstr (haystack, L"chrome") || wcsstr (haystack, L"firefox") || wcsstr (haystack, L"msedge") ||
+		wcsstr (haystack, L"\\edge\\") || wcsstr (haystack, L"brave") || wcsstr (haystack, L"opera") ||
+		wcsstr (haystack, L"vivaldi") || wcsstr (haystack, L"waterfox") || wcsstr (haystack, L"librewolf") ||
+		wcsstr (haystack, L"browser")
+		)
+	{
+		return APP_GROUP_BROWSERS;
+	}
+
+	// Games / launchers
+	if (
+		wcsstr (haystack, L"steam") || wcsstr (haystack, L"epic games") || wcsstr (haystack, L"epicgames") ||
+		wcsstr (haystack, L"battle.net") || wcsstr (haystack, L"battlenet") || wcsstr (haystack, L"riot") ||
+		wcsstr (haystack, L"origin") || wcsstr (haystack, L"ea desktop") || wcsstr (haystack, L"ubisoft") ||
+		wcsstr (haystack, L"gog galaxy") || wcsstr (haystack, L"xbox") || wcsstr (haystack, L"game") ||
+		wcsstr (haystack, L"minecraft") || wcsstr (haystack, L"\\games\\")
+		)
+	{
+		return APP_GROUP_GAMES;
+	}
+
+	// Communication
+	if (
+		wcsstr (haystack, L"discord") || wcsstr (haystack, L"slack") || wcsstr (haystack, L"teams") ||
+		wcsstr (haystack, L"zoom") || wcsstr (haystack, L"skype") || wcsstr (haystack, L"telegram") ||
+		wcsstr (haystack, L"whatsapp") || wcsstr (haystack, L"signal") || wcsstr (haystack, L"outlook") ||
+		wcsstr (haystack, L"mail") || wcsstr (haystack, L"thunderbird")
+		)
+	{
+		return APP_GROUP_COMMUNICATION;
+	}
+
+	// Media
+	if (
+		wcsstr (haystack, L"spotify") || wcsstr (haystack, L"vlc") || wcsstr (haystack, L"itunes") ||
+		wcsstr (haystack, L"music") || wcsstr (haystack, L"netflix") || wcsstr (haystack, L"plex") ||
+		wcsstr (haystack, L"obs") || wcsstr (haystack, L"photoshop") || wcsstr (haystack, L"premiere") ||
+		wcsstr (haystack, L"blender") || wcsstr (haystack, L"davinci") || wcsstr (haystack, L"ffmpeg") ||
+		wcsstr (haystack, L"mpv") || wcsstr (haystack, L"foobar")
+		)
+	{
+		return APP_GROUP_MEDIA;
+	}
+
+	// Development
+	if (
+		wcsstr (haystack, L"visual studio") || wcsstr (haystack, L"\\vscode") || wcsstr (haystack, L"code.exe") ||
+		wcsstr (haystack, L"cursor") || wcsstr (haystack, L"git") || wcsstr (haystack, L"node") ||
+		wcsstr (haystack, L"python") || wcsstr (haystack, L"docker") || wcsstr (haystack, L"jetbrains") ||
+		wcsstr (haystack, L"android studio") || wcsstr (haystack, L"devenv") || wcsstr (haystack, L"windbg") ||
+		wcsstr (haystack, L"terminal") || wcsstr (haystack, L"powershell") || wcsstr (haystack, L"cmd.exe")
+		)
+	{
+		return APP_GROUP_DEVELOPMENT;
+	}
+
+	// Productivity
+	if (
+		wcsstr (haystack, L"office") || wcsstr (haystack, L"word") || wcsstr (haystack, L"excel") ||
+		wcsstr (haystack, L"powerpoint") || wcsstr (haystack, L"onenote") || wcsstr (haystack, L"notion") ||
+		wcsstr (haystack, L"evernote") || wcsstr (haystack, L"acrobat") || wcsstr (haystack, L"onedrive") ||
+		wcsstr (haystack, L"dropbox") || wcsstr (haystack, L"google drive") || wcsstr (haystack, L"notepad")
+		)
+	{
+		return APP_GROUP_PRODUCTIVITY;
+	}
+
+	return APP_GROUP_OTHER;
+}
+
+UINT _app_getappcategorylocale (
+	_In_ INT group_id
+)
+{
+	switch (group_id)
+	{
+		case APP_GROUP_SYSTEM:
+			return IDS_GROUP_SYSTEM;
+
+		case APP_GROUP_BROWSERS:
+			return IDS_GROUP_BROWSERS;
+
+		case APP_GROUP_GAMES:
+			return IDS_GROUP_GAMES;
+
+		case APP_GROUP_COMMUNICATION:
+			return IDS_GROUP_COMMUNICATION;
+
+		case APP_GROUP_MEDIA:
+			return IDS_GROUP_MEDIA;
+
+		case APP_GROUP_DEVELOPMENT:
+			return IDS_GROUP_DEVELOPMENT;
+
+		case APP_GROUP_PRODUCTIVITY:
+			return IDS_GROUP_PRODUCTIVITY;
+
+		default:
+			return IDS_GROUP_OTHER;
+	}
+}
+
+VOID _app_theme_apply (
+	_In_opt_ HWND hwnd
+)
+{
+	HWND hwindow;
+	LONG mode;
+	LONG palette;
+
+	hwindow = hwnd ? hwnd : _r_app_gethwnd ();
+	mode = _app_theme_getmode ();
+
+	if (mode == THEME_MODE_CYBER)
+		palette = THEME_PALETTE_CYBER;
+	else if (mode == THEME_MODE_ALBUQUERQUE)
+		palette = THEME_PALETTE_ALBUQUERQUE;
+	else
+		palette = THEME_PALETTE_FLUENT;
+
+	_r_theme_applypalette (palette);
+
+	if (hwindow)
+	{
+		// Albuquerque is light chrome + sand surfaces (isenabled=FALSE, custom colors still apply).
+		_r_theme_enable (hwindow, _app_theme_isenabled ());
+
+		_app_imagelist_init (hwindow, _r_dc_getwindowdpi (hwindow));
+		_app_setinterfacestate (hwindow, _r_dc_getwindowdpi (hwindow));
+	}
+}
+
+VOID _app_theme_setmode (
+	_In_opt_ HWND hwnd,
+	_In_ LONG mode
+)
+{
+	_r_config_setlong (L"ThemeMode", _r_calc_clamp (mode, THEME_MODE_SYSTEM, THEME_MODE_ALBUQUERQUE), NULL);
+
+	_app_theme_apply (hwnd);
+}
+
+VOID _app_gamemode_updateui (
+	_In_opt_ HWND hwnd
+)
+{
+	WCHAR title[0x80];
+	HWND hwindow;
+	BOOLEAN is_enabled;
+	BOOLEAN is_allowall;
+
+	hwindow = hwnd ? hwnd : _r_app_gethwnd ();
+	is_enabled = _r_config_getboolean (L"IsGameModeEnabled", FALSE, NULL);
+	is_allowall = _r_config_getboolean (L"IsTempAllowAll", FALSE, NULL);
+
+	if (is_enabled && is_allowall)
+		_r_str_printf (title, RTL_NUMBER_OF (title), L"%s (game-mode, allow-all)", _r_app_getname ());
+	else if (is_enabled)
+		_r_str_printf (title, RTL_NUMBER_OF (title), L"%s (game-mode)", _r_app_getname ());
+	else if (is_allowall)
+		_r_str_printf (title, RTL_NUMBER_OF (title), L"%s (allow-all)", _r_app_getname ());
+	else
+		_r_str_copy (title, RTL_NUMBER_OF (title), _r_app_getname ());
+
+	if (hwindow)
+	{
+		_r_ctrl_setstring (hwindow, 0, title);
+
+		if (!_wfp_isfiltersapplying ())
+			_app_setinterfacestate (hwindow, _r_dc_getwindowdpi (hwindow));
+	}
+}
+
+VOID _app_gamemode_set (
+	_In_opt_ HWND hwnd,
+	_In_ BOOLEAN is_enable
+)
+{
+	HWND hwindow;
+	HMENU hmenu;
+
+	_r_config_setboolean (L"IsGameModeEnabled", is_enable, NULL);
+
+	hwindow = hwnd ? hwnd : _r_app_gethwnd ();
+
+	if (hwindow)
+	{
+		hmenu = GetMenu (hwindow);
+
+		if (hmenu)
+			_r_menu_checkitem (hmenu, IDM_GAMEMODE_CHK, 0, MF_BYCOMMAND, is_enable);
+	}
+
+	_app_gamemode_updateui (hwindow);
+}
+
+VOID _app_allowall_set (
+	_In_opt_ HWND hwnd,
+	_In_ BOOLEAN is_enable
+)
+{
+	HWND hwindow;
+	HMENU hmenu;
+
+	_r_config_setboolean (L"IsTempAllowAll", is_enable, NULL);
+
+	_wfp_allowall_set (is_enable);
+
+	hwindow = hwnd ? hwnd : _r_app_gethwnd ();
+
+	if (hwindow)
+	{
+		hmenu = GetMenu (hwindow);
+
+		if (hmenu)
+			_r_menu_checkitem (hmenu, IDM_ALLOWALL_CHK, 0, MF_BYCOMMAND, is_enable);
+	}
+
+	_app_gamemode_updateui (hwindow);
 }
 
 BOOLEAN _app_command_setapppath (
@@ -1104,7 +1449,10 @@ VOID _app_getfileicon (
 	_Inout_ PITEM_APP_INFO ptr_app_info
 )
 {
+	PICON_INFORMATION icon_info;
 	LONG icon_id = 0;
+
+	icon_info = _app_icons_getdefault ();
 
 	if (_r_config_getboolean (L"IsIconsHidden", FALSE, NULL) || !_app_isappvalidbinary (ptr_app_info->path))
 	{
@@ -1113,6 +1461,15 @@ VOID _app_getfileicon (
 	else
 	{
 		_app_icons_loadfromfile (ptr_app_info->path, ptr_app_info->type, &icon_id, NULL, TRUE);
+	}
+
+	// Iconless .exe / Windows binaries: use distinct defaults (package / shield)
+	if (!icon_id || icon_id == icon_info->generic_icon_id || icon_id == icon_info->app_icon_id)
+	{
+		if (_app_isappfromsystem (ptr_app_info->path, ptr_app_info->app_hash))
+			icon_id = _app_icons_getdefaultsystem_id ();
+		else if (!icon_id || icon_id == icon_info->generic_icon_id)
+			icon_id = _app_icons_getdefaultapp_id (ptr_app_info->type);
 	}
 
 	ptr_app_info->icon_id = icon_id;

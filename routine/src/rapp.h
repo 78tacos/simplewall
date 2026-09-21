@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "app.h"
 #include "routine.h"
 #include "rconfig.h"
 
@@ -26,14 +27,39 @@
 #define IDC_CLOSE 1003
 #endif // IDC_CLOSE
 
-#define WND_BACKGROUND_CLR RGB(0x2A, 0x2A, 0x2A)
-#define WND_BACKGROUND2_CLR RGB(0x40, 0x40, 0x40)
-#define WND_BORDER_CLR RGB(0x90, 0x10, 0x20)
-#define WND_BUTTON_CLR RGB(0x24, 0x24, 0x24)
-#define WND_HIGHLIGHT_CLR RGB(0x80, 0x80, 0x80)
-#define WND_HOT_CLR RGB(0xE3, 0x20, 0x00)
+// Fluent / Windows 11 dark surfaces (soft charcoal)
+#define WND_BACKGROUND_CLR RGB(0x20, 0x20, 0x20)
+#define WND_BACKGROUND2_CLR RGB(0x2C, 0x2C, 0x2C)
+#define WND_BORDER_CLR RGB(0x60, 0xCD, 0xFF) // fallback accent (Win11 default blue)
+#define WND_BUTTON_CLR RGB(0x29, 0x29, 0x29)
+#define WND_HIGHLIGHT_CLR RGB(0x3F, 0x3F, 0x3F)
+#define WND_HOT_CLR RGB(0x60, 0xCD, 0xFF) // fallback; live accent in app_global.theme
 #define WND_TEXT_CLR RGB(0xFF, 0xFF, 0xFF)
-#define WND_GRAYTEXT_CLR RGB(0x50, 0x50, 0x50)
+#define WND_GRAYTEXT_CLR RGB(0x9A, 0x9A, 0x9A)
+
+// Cyber / ice-blue alternate dark palette
+#define WND_CYBER_BACKGROUND_CLR RGB(0x0B, 0x12, 0x20)
+#define WND_CYBER_BACKGROUND2_CLR RGB(0x14, 0x1E, 0x32)
+#define WND_CYBER_BUTTON_CLR RGB(0x10, 0x18, 0x28)
+#define WND_CYBER_HIGHLIGHT_CLR RGB(0x1E, 0x3A, 0x5F)
+#define WND_CYBER_HOT_CLR RGB(0x5E, 0xC8, 0xFF)
+#define WND_CYBER_BORDER_CLR RGB(0x3D, 0xB9, 0xFF)
+#define WND_CYBER_TEXT_CLR RGB(0xE8, 0xF4, 0xFF)
+#define WND_CYBER_GRAYTEXT_CLR RGB(0x7A, 0x9A, 0xB8)
+
+// Albuquerque — pale sunny desert (light theme)
+#define WND_ABQ_BACKGROUND_CLR RGB(0xF7, 0xF0, 0xD8) // pale sand
+#define WND_ABQ_BACKGROUND2_CLR RGB(0xEF, 0xE4, 0xC4) // warmer sand
+#define WND_ABQ_BUTTON_CLR RGB(0xF3, 0xEA, 0xD0)
+#define WND_ABQ_HIGHLIGHT_CLR RGB(0xE8, 0xD9, 0xA8)
+#define WND_ABQ_HOT_CLR RGB(0xD4, 0xA0, 0x17) // sunny gold
+#define WND_ABQ_BORDER_CLR RGB(0xC4, 0x8A, 0x3A) // adobe clay
+#define WND_ABQ_TEXT_CLR RGB(0x3D, 0x34, 0x28) // dark earth
+#define WND_ABQ_GRAYTEXT_CLR RGB(0x8A, 0x7A, 0x60)
+
+#define THEME_PALETTE_FLUENT 0
+#define THEME_PALETTE_CYBER 1
+#define THEME_PALETTE_ALBUQUERQUE 2
 
 //
 // Global variables
@@ -371,6 +397,70 @@ VOID _r_theme_initializecontext (
 );
 
 BOOLEAN _r_theme_isenabled ();
+
+VOID _r_theme_resolveaccent ();
+
+VOID _r_theme_applypalette (
+	_In_ LONG palette
+);
+
+FORCEINLINE COLORREF _r_theme_gethotcolor ()
+{
+	return app_global.theme.hot_clr ? app_global.theme.hot_clr : WND_HOT_CLR;
+}
+
+FORCEINLINE COLORREF _r_theme_getbordercolor ()
+{
+	return app_global.theme.border_clr ? app_global.theme.border_clr : WND_BORDER_CLR;
+}
+
+FORCEINLINE COLORREF _r_theme_getaccentcolor ()
+{
+	return app_global.theme.accent_clr ? app_global.theme.accent_clr : WND_HOT_CLR;
+}
+
+FORCEINLINE COLORREF _r_theme_getbgcolor ()
+{
+	return app_global.theme.bg_clr ? app_global.theme.bg_clr : WND_BACKGROUND_CLR;
+}
+
+FORCEINLINE COLORREF _r_theme_getbg2color ()
+{
+	return app_global.theme.bg2_clr ? app_global.theme.bg2_clr : WND_BACKGROUND2_CLR;
+}
+
+FORCEINLINE COLORREF _r_theme_getbuttoncolor ()
+{
+	return app_global.theme.button_clr ? app_global.theme.button_clr : WND_BUTTON_CLR;
+}
+
+FORCEINLINE COLORREF _r_theme_gethighlightcolor ()
+{
+	return app_global.theme.highlight_clr ? app_global.theme.highlight_clr : WND_HIGHLIGHT_CLR;
+}
+
+FORCEINLINE COLORREF _r_theme_gettextcolor ()
+{
+	return app_global.theme.text_clr ? app_global.theme.text_clr : WND_TEXT_CLR;
+}
+
+FORCEINLINE COLORREF _r_theme_getgraytextcolor ()
+{
+	return app_global.theme.graytext_clr ? app_global.theme.graytext_clr : WND_GRAYTEXT_CLR;
+}
+
+FORCEINLINE BOOLEAN _r_theme_iscustomchrome ()
+{
+	return app_global.theme.palette == THEME_PALETTE_ALBUQUERQUE || app_global.theme.palette == THEME_PALETTE_CYBER;
+}
+
+FORCEINLINE BOOLEAN _r_theme_usecustomcolors (
+	_In_ BOOLEAN is_dark_enabled
+)
+{
+	// Custom palettes always paint their surfaces (ABQ is light; Cyber is dark).
+	return is_dark_enabled || app_global.theme.palette == THEME_PALETTE_ALBUQUERQUE;
+}
 
 VOID _r_theme_setwindowframe (
 	_In_ HWND hwnd,
@@ -736,17 +826,29 @@ FORCEINLINE LPCWSTR _r_app_getcopyright ()
 
 FORCEINLINE LPCWSTR _r_app_getdonate_url ()
 {
+#if defined(APP_DONATE_URL)
+	return APP_DONATE_URL;
+#else
 	return L"https://github.com/henrypp/" APP_NAME_SHORT L"#donate";
+#endif
 }
 
 FORCEINLINE LPCWSTR _r_app_getwebsite_url ()
 {
+#if defined(APP_WEBSITE_URL)
+	return APP_WEBSITE_URL;
+#else
 	return L"https://github.com/henrypp/" APP_NAME_SHORT;
+#endif
 }
 
 FORCEINLINE LPCWSTR _r_app_getupdate_url ()
 {
+#if defined(APP_UPDATE_URL)
+	return APP_UPDATE_URL;
+#else
 	return L"https://raw.githubusercontent.com/henrypp/" APP_NAME_SHORT L"/master/VERSION";
+#endif
 }
 
 FORCEINLINE LPCWSTR _r_app_getversiontype ()

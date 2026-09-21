@@ -83,8 +83,24 @@ typedef BOOL (WINAPI *CCAAC2) (
 	_r_wnd_sendmessage ((hwnd), (id), EM_SETSEL, (start), (end))
 #define _r_obj_initializestringref(ref, string) \
 	_r_obj_initializestringref ((ref), (LPWSTR)(string))
-#define _r_toolbar_setbutton(hwnd, id, command, text, style, state, image) \
-	_r_toolbar_setbutton ((hwnd), (id), (command), (LPWSTR)(text), (style), (state), (image))
+// Private SDK used I_DEFAULT to mean "keep image"; public routine only skips on I_IMAGENONE.
+static inline BOOLEAN sw_compat_toolbar_setbutton (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ UINT_PTR command_id,
+	_In_opt_ LPCWSTR text,
+	_In_ INT style,
+	_In_ INT state,
+	_In_ INT image
+)
+{
+	if (image == I_DEFAULT)
+		image = I_IMAGENONE;
+
+	return _r_toolbar_setbutton (hwnd, ctrl_id, command_id, (LPWSTR)text, style, state, image);
+}
+
+#define _r_toolbar_setbutton sw_compat_toolbar_setbutton
 
 static inline HRESULT sw_compat_imagelist_setsize (
 	_In_ HIMAGELIST himg,
@@ -233,6 +249,18 @@ static inline NTSTATUS sw_compat_createthread (
 	_r_reg_openkey ((root), (LPWSTR)(path), (flags), (access), (out))
 #define _r_res_loadresource(out, module, type, name, language) \
 	_r_res_loadresource ((module), (type), (name), (language), (out))
+
+// Private SDK: _r_res_queryversion(out, block). Public: (block, out).
+static inline BOOLEAN sw_compat_res_queryversion (
+	_Out_ PVOID_PTR out_buffer,
+	_In_ LPCVOID ver_block
+)
+{
+	return _r_res_queryversion (ver_block, out_buffer);
+}
+
+#define _r_res_queryversion sw_compat_res_queryversion
+
 #define _r_imagelist_getsystem(out, size) _r_imagelist_getsystem ((size), (out))
 #define _r_sys_getservicesid(out, name) _r_sys_getservicesid ((LPWSTR)(name), (out))
 #define _r_sys_getusername(out, sid, domain) _r_sys_getusername ((PSID)(sid), (domain), (out))

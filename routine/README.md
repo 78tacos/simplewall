@@ -188,8 +188,8 @@ IsWindowBorderEnabled=TRUE
 #2.7.10+
 #
 
-# Закруглять границы окон Windows 11 и выше (BOOLEAN)
-IsWindowCornerRound=FALSE
+# Закруглять границы окон Windows 11 и выше (BOOLEAN) — Fluent default ON
+IsWindowCornerRound=TRUE
 
 #
 #3.0+

@@ -81,6 +81,9 @@ static BOOLEAN _app_notify_isforegroundfullscreen ()
 
 static BOOLEAN _app_notify_isfullscreensilent ()
 {
+	if (_r_config_getboolean (L"IsGameModeEnabled", FALSE, NULL))
+		return TRUE;
+
 	if (!_r_config_getboolean (L"IsNotificationsFullscreenSilentMode", TRUE, NULL))
 		return FALSE;
 
@@ -229,7 +232,7 @@ BOOLEAN _app_notify_addobject (
 
 	if (_r_wnd_sendmessage (hwnd, 0, WM_NOTIFICATION, 0, (LPARAM)ptr_app->notification))
 	{
-		if (_r_config_getboolean (L"IsNotificationsSound", TRUE, NULL) && (!_r_config_getboolean (L"IsNotificationsFullscreenSilentMode", TRUE, NULL) || !_app_notify_isforegroundfullscreen ()))
+		if (_r_config_getboolean (L"IsNotificationsSound", TRUE, NULL) && !_r_config_getboolean (L"IsGameModeEnabled", FALSE, NULL) && (!_r_config_getboolean (L"IsNotificationsFullscreenSilentMode", TRUE, NULL) || !_app_notify_isforegroundfullscreen ()))
 			_app_notify_playsound ();
 
 		return TRUE;
@@ -471,7 +474,7 @@ VOID _app_notify_show (
 	// set correct position
 	_app_notify_setposition (hwnd, FALSE);
 
-	if (_r_config_getboolean (L"IsNotificationsFullscreenSilentMode", TRUE, NULL) && is_fullscreenmode)
+	if (_r_config_getboolean (L"IsGameModeEnabled", FALSE, NULL) || (_r_config_getboolean (L"IsNotificationsFullscreenSilentMode", TRUE, NULL) && is_fullscreenmode))
 	{
 		ShowWindow (hwnd, SW_HIDE);
 	}
@@ -877,9 +880,25 @@ VOID _app_notify_drawgradient (
 	_In_ LPCRECT rect
 )
 {
-	COLORREF gradient_arr[] = {RGB (0, 68, 112), RGB (7, 111, 95)};
+	COLORREF accent;
+	COLORREF gradient_arr[2];
 	GRADIENT_RECT gradient_rect = {0};
 	TRIVERTEX trivertx[2] = {0};
+
+	accent = _r_theme_getaccentcolor ();
+
+	if (_app_theme_isenabled ())
+	{
+		// Fluent dark: surface → accent
+		gradient_arr[0] = _r_theme_getbg2color ();
+		gradient_arr[1] = accent;
+	}
+	else
+	{
+		// Light: soft accent wash → slightly deeper accent
+		gradient_arr[0] = _app_color_blend (accent, RGB (0xF3, 0xF3, 0xF3), 35);
+		gradient_arr[1] = _r_dc_getcolorshade (accent, 85);
+	}
 
 	static_assert (RTL_NUMBER_OF (gradient_arr) == RTL_NUMBER_OF (trivertx), "Invalid array size!");
 

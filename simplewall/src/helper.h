@@ -8,10 +8,13 @@ typedef struct _ICON_INFORMATION
 	HICON app_hicon;
 	HICON service_hicon;
 	HICON uwp_hicon;
+	HICON system_hicon;
 
 	LONG app_icon_id;
 	LONG service_icon_id;
 	LONG uwp_icon_id;
+	LONG system_icon_id;
+	LONG generic_icon_id; // shell blank .exe (SIID_APPLICATION) — detect for substitution
 } ICON_INFORMATION, *PICON_INFORMATION;
 
 #define FMTADDR_AS_RULE 0x0001
@@ -150,6 +153,51 @@ VOID _app_updateappconnect (
 
 VOID _app_hotkey_update (
 	_In_ HWND hwnd
+);
+
+LONG _app_theme_getmode ();
+
+BOOLEAN _app_theme_isenabled ();
+
+COLORREF _app_color_blend (
+	_In_ COLORREF color1,
+	_In_ COLORREF color2,
+	_In_ ULONG percent // 0-100 weight of color1
+);
+
+COLORREF _app_color_fordark (
+	_In_ COLORREF color
+);
+
+INT _app_getappcategorygroup (
+	_In_ PITEM_APP ptr_app
+);
+
+UINT _app_getappcategorylocale (
+	_In_ INT group_id
+);
+
+VOID _app_theme_apply (
+	_In_opt_ HWND hwnd
+);
+
+VOID _app_theme_setmode (
+	_In_opt_ HWND hwnd,
+	_In_ LONG mode
+);
+
+VOID _app_gamemode_updateui (
+	_In_opt_ HWND hwnd
+);
+
+VOID _app_gamemode_set (
+	_In_opt_ HWND hwnd,
+	_In_ BOOLEAN is_enable
+);
+
+VOID _app_allowall_set (
+	_In_opt_ HWND hwnd,
+	_In_ BOOLEAN is_enable
 );
 
 BOOLEAN _app_command_setapppath (

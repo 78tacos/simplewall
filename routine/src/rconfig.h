@@ -95,19 +95,19 @@
 #pragma PR_PRINT_WARNING_DEFINE(APP_ERROR_PERIOD)
 #else
 #define APP_ERROR_PERIOD 4
-#endif // APP_UPDATE_PERIOD
+#endif // APP_ERROR_PERIOD
 
-//
-// Messages
-//
-
+#if !defined(APP_ABOUT_FOOTER)
 #define APP_ABOUT_FOOTER L"This program is free software; you can redistribute it and/or modify it under the terms of " \
 	L"the <a href=\"https://github.com/henrypp/routine\">GNU General Public License 3</a> " \
 	L"as published by the Free Software Foundation."
+#endif
 
+#if !defined(APP_ABOUT_DONATE)
 #define APP_ABOUT_DONATE L"<a href=\"https://www.blockchain.com/btc/address/1LrRTXPsvHcQWCNZotA9RcwjsGcRghG96c\">Bitcoin</a> | " \
 	L"<a href=\"https://www.blockchain.com/explorer/addresses/eth/0xe2C84A62eb2a4EF154b19bec0c1c106734B95960\">Ethereum</a> | " \
 	L"<a href=\"https://paypal.me/henrypp\">PayPal</a> | <a href=\"https://yoomoney.ru/to/4100115776040583\">Yandex Money</a>"
+#endif
 
 #define APP_EXCEPTION_TITLE L"Exception raised :("
 

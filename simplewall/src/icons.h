@@ -18,6 +18,8 @@ LONG _app_icons_getdefaultapp_id (
 	_In_ ENUM_TYPE_DATA type
 );
 
+LONG _app_icons_getdefaultsystem_id ();
+
 _Ret_maybenull_
 HICON _app_icons_getsafeapp_hicon (
 	_In_ ULONG app_hash

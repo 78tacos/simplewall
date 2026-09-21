@@ -822,6 +822,7 @@ HWND _r_app_createwindow (
 		WM_COPYDATA,
 		WM_COPYGLOBALDATA,
 		WM_DROPFILES,
+		RM_TRAYICON, // explorer -> elevated window (UIPI)
 		app_global.main.taskbar_msg,
 	};
 
@@ -2650,7 +2651,7 @@ HRESULT CALLBACK _r_update_pagecallback (
 			//if (_r_theme_isenabled ())
 			//	_r_theme_initializetaskdialogtheme (hwnd, 0);
 
-			if (_r_sys_isosversiongreaterorequal (WINDOWS_11) && !_r_config_getboolean (L"IsWindowCornerRound", FALSE))
+			if (_r_sys_isosversiongreaterorequal (WINDOWS_11) && !_r_config_getboolean (L"IsWindowCornerRound", TRUE))
 				DwmSetWindowAttribute (hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &(DWM_WINDOW_CORNER_PREFERENCE){ DWMWCP_DONOTROUND }, sizeof (DWM_WINDOW_CORNER_PREFERENCE));
 
 			if (update_info->hthread)
@@ -4720,8 +4721,10 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 	LONG_PTR style;
 	HWND htip;
 	BOOLEAN is_enable;
+	BOOLEAN use_custom;
 
 	is_enable = !!context;
+	use_custom = _r_theme_usecustomcolors (is_enable);
 
 	class_name = _r_wnd_getclassname (hwnd);
 
@@ -4746,23 +4749,23 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 	//	if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
 	//		_r_theme_setdarkmode (hwnd, is_enable);
 	//
-	//	_r_progress_setbarcolor (hwnd, 0, is_enable ? WND_TEXT_CLR : CLR_DEFAULT);
-	//	_r_progress_setbkcolor (hwnd, 0, is_enable ? WND_BACKGROUND2_CLR : CLR_DEFAULT);
+	//	_r_progress_setbarcolor (hwnd, 0, is_enable ? _r_theme_gettextcolor () : CLR_DEFAULT);
+	//	_r_progress_setbkcolor (hwnd, 0, is_enable ? _r_theme_getbg2color () : CLR_DEFAULT);
 	//}
 	else if (_r_str_isequal2 (&class_name->sr, REBARCLASSNAME, TRUE))
 	{
-		_r_theme_initializecontext (hwnd, NULL, &_r_theme_rebar_subclass, is_enable);
+		_r_theme_initializecontext (hwnd, NULL, &_r_theme_rebar_subclass, use_custom);
 	}
 	else if (_r_str_isequal2 (&class_name->sr, STATUSCLASSNAME, TRUE))
 	{
-		_r_theme_initializecontext (hwnd, VSCLASS_STATUS, &_r_theme_statusbar_subclass, is_enable);
+		_r_theme_initializecontext (hwnd, VSCLASS_STATUS, &_r_theme_statusbar_subclass, use_custom);
 	}
 	else if (_r_str_isequal2 (&class_name->sr, TOOLBARCLASSNAME, TRUE))
 	{
 		scheme.dwSize = sizeof (COLORSCHEME);
 
-		scheme.clrBtnHighlight = is_enable ? WND_TEXT_CLR : CLR_DEFAULT;
-		scheme.clrBtnShadow = is_enable ? WND_TEXT_CLR : CLR_DEFAULT;
+		scheme.clrBtnHighlight = use_custom ? _r_theme_gettextcolor () : CLR_DEFAULT;
+		scheme.clrBtnShadow = use_custom ? _r_theme_gettextcolor () : CLR_DEFAULT;
 
 		_r_toolbar_setcolorscheme (hwnd, 0, &scheme);
 
@@ -4804,7 +4807,7 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 
 			case BS_GROUPBOX:
 			{
-				_r_theme_initializecontext (hwnd, VSCLASS_BUTTON, &_r_theme_groupbox_subclass, is_enable);
+				_r_theme_initializecontext (hwnd, VSCLASS_BUTTON, &_r_theme_groupbox_subclass, use_custom);
 				break;
 			}
 		}
@@ -4828,7 +4831,7 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 			}
 		}
 
-		_r_theme_initializecontext (hwnd, VSCLASS_COMBOBOX, &_r_theme_combobox_subclassproc, is_enable);
+		_r_theme_initializecontext (hwnd, VSCLASS_COMBOBOX, &_r_theme_combobox_subclassproc, use_custom);
 	}
 	else if (_r_str_isequal2 (&class_name->sr, WC_EDIT, TRUE))
 	{
@@ -4841,7 +4844,7 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 			_r_theme_setdarkmode (hwnd, is_enable); // dark scrollbar for edit control
 
 		if ((style & WS_BORDER) == WS_BORDER || (ex_style & WS_EX_CLIENTEDGE) == WS_EX_CLIENTEDGE)
-			_r_theme_initializecontext (hwnd, NULL, &_r_theme_edit_subclass, is_enable);
+			_r_theme_initializecontext (hwnd, NULL, &_r_theme_edit_subclass, use_custom);
 
 		SetWindowPlacement (hwnd, &pos);
 
@@ -4851,7 +4854,7 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 	{
 		SetWindowTheme (hwnd, is_enable ? L"DarkMode_ItemsView" : L"Explorer", NULL);
 
-		_r_theme_initializecontext (hwnd, VSCLASS_HEADER, &_r_theme_header_subclass, is_enable);
+		_r_theme_initializecontext (hwnd, VSCLASS_HEADER, &_r_theme_header_subclass, use_custom);
 	}
 	else if (_r_str_isequal2 (&class_name->sr, WC_LISTVIEW, TRUE))
 	{
@@ -4865,9 +4868,9 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 				_r_theme_setdarkmode (htip, is_enable);
 		}
 
-		_r_wnd_sendmessage (hwnd, 0, LVM_SETBKCOLOR, 0, is_enable ? WND_BACKGROUND_CLR : GetSysColor (COLOR_WINDOW));
-		_r_wnd_sendmessage (hwnd, 0, LVM_SETTEXTCOLOR, 0, is_enable ? WND_TEXT_CLR : GetSysColor (COLOR_WINDOWTEXT));
-		_r_wnd_sendmessage (hwnd, 0, LVM_SETTEXTBKCOLOR, 0, is_enable ? WND_BACKGROUND_CLR : GetSysColor (COLOR_WINDOW));
+		_r_wnd_sendmessage (hwnd, 0, LVM_SETBKCOLOR, 0, use_custom ? _r_theme_getbgcolor () : GetSysColor (COLOR_WINDOW));
+		_r_wnd_sendmessage (hwnd, 0, LVM_SETTEXTCOLOR, 0, use_custom ? _r_theme_gettextcolor () : GetSysColor (COLOR_WINDOWTEXT));
+		_r_wnd_sendmessage (hwnd, 0, LVM_SETTEXTBKCOLOR, 0, use_custom ? _r_theme_getbgcolor () : GetSysColor (COLOR_WINDOW));
 	}
 	else if (_r_str_isequal2 (&class_name->sr, WC_SCROLLBAR, TRUE))
 	{
@@ -4876,7 +4879,7 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 	}
 	else if (_r_str_isequal2 (&class_name->sr, WC_TABCONTROL, TRUE))
 	{
-		_r_theme_initializecontext (hwnd, VSCLASS_HEADER, &_r_theme_tabcontrol_subclass, is_enable);
+		_r_theme_initializecontext (hwnd, VSCLASS_HEADER, &_r_theme_tabcontrol_subclass, use_custom);
 	}
 	else if (_r_str_isequal2 (&class_name->sr, WC_TREEVIEW, TRUE))
 	{
@@ -4890,8 +4893,8 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 				_r_theme_setdarkmode (htip, is_enable);
 		}
 
-		_r_wnd_sendmessage (hwnd, 0, TVM_SETTEXTCOLOR, 0, is_enable ? WND_TEXT_CLR : -1);
-		_r_wnd_sendmessage (hwnd, 0, TVM_SETBKCOLOR, 0, is_enable ? WND_BACKGROUND_CLR : -1);
+		_r_wnd_sendmessage (hwnd, 0, TVM_SETTEXTCOLOR, 0, use_custom ? _r_theme_gettextcolor () : -1);
+		_r_wnd_sendmessage (hwnd, 0, TVM_SETBKCOLOR, 0, use_custom ? _r_theme_getbgcolor () : -1);
 	}
 
 	InvalidateRect (hwnd, NULL, FALSE);
@@ -4932,6 +4935,12 @@ VOID _r_theme_initialize (
 
 		_r_initonce_end (&init_once);
 	}
+
+	// Ensure palette colors exist (default Fluent) before accent resolve
+	if (!app_global.theme.bg_clr)
+		_r_theme_applypalette (app_global.theme.palette);
+	else
+		_r_theme_resolveaccent ();
 
 	if (_SetPreferredAppMode)
 		_SetPreferredAppMode (is_enable ? AllowDark : Default);
@@ -4991,11 +5000,108 @@ BOOLEAN _r_theme_isenabled ()
 	return _r_config_getboolean (L"IsDarkThemeEnabled", _r_wnd_isdarkmodeenabled ());
 }
 
+VOID _r_theme_resolveaccent ()
+{
+	COLORREF accent;
+	LONG palette;
+
+	palette = app_global.theme.palette;
+
+	if (palette == THEME_PALETTE_CYBER)
+	{
+		accent = WND_CYBER_HOT_CLR;
+		app_global.theme.border_clr = WND_CYBER_BORDER_CLR;
+	}
+	else if (palette == THEME_PALETTE_ALBUQUERQUE)
+	{
+		accent = WND_ABQ_HOT_CLR;
+		app_global.theme.border_clr = WND_ABQ_BORDER_CLR;
+	}
+	else
+	{
+		accent = _r_dc_getcoloraccent ();
+
+		if (!accent || (GetRValue (accent) < 8 && GetGValue (accent) < 8 && GetBValue (accent) < 8))
+			accent = WND_HOT_CLR;
+
+		app_global.theme.border_clr = accent;
+	}
+
+	app_global.theme.accent_clr = accent;
+	app_global.theme.hot_clr = accent;
+}
+
+VOID _r_theme_applypalette (
+	_In_ LONG palette
+)
+{
+	if (palette == THEME_PALETTE_CYBER)
+		app_global.theme.palette = THEME_PALETTE_CYBER;
+	else if (palette == THEME_PALETTE_ALBUQUERQUE)
+		app_global.theme.palette = THEME_PALETTE_ALBUQUERQUE;
+	else
+		app_global.theme.palette = THEME_PALETTE_FLUENT;
+
+	if (app_global.theme.palette == THEME_PALETTE_CYBER)
+	{
+		app_global.theme.bg_clr = WND_CYBER_BACKGROUND_CLR;
+		app_global.theme.bg2_clr = WND_CYBER_BACKGROUND2_CLR;
+		app_global.theme.button_clr = WND_CYBER_BUTTON_CLR;
+		app_global.theme.highlight_clr = WND_CYBER_HIGHLIGHT_CLR;
+		app_global.theme.text_clr = WND_CYBER_TEXT_CLR;
+		app_global.theme.graytext_clr = WND_CYBER_GRAYTEXT_CLR;
+	}
+	else if (app_global.theme.palette == THEME_PALETTE_ALBUQUERQUE)
+	{
+		app_global.theme.bg_clr = WND_ABQ_BACKGROUND_CLR;
+		app_global.theme.bg2_clr = WND_ABQ_BACKGROUND2_CLR;
+		app_global.theme.button_clr = WND_ABQ_BUTTON_CLR;
+		app_global.theme.highlight_clr = WND_ABQ_HIGHLIGHT_CLR;
+		app_global.theme.text_clr = WND_ABQ_TEXT_CLR;
+		app_global.theme.graytext_clr = WND_ABQ_GRAYTEXT_CLR;
+	}
+	else
+	{
+		app_global.theme.bg_clr = WND_BACKGROUND_CLR;
+		app_global.theme.bg2_clr = WND_BACKGROUND2_CLR;
+		app_global.theme.button_clr = WND_BUTTON_CLR;
+		app_global.theme.highlight_clr = WND_HIGHLIGHT_CLR;
+		app_global.theme.text_clr = WND_TEXT_CLR;
+		app_global.theme.graytext_clr = WND_GRAYTEXT_CLR;
+	}
+
+	_r_theme_resolveaccent ();
+
+	if (app_global.theme.bg_brush)
+	{
+		DeleteObject (app_global.theme.bg_brush);
+		app_global.theme.bg_brush = NULL;
+	}
+
+	app_global.theme.bg_brush = CreateSolidBrush (_r_theme_getbgcolor ());
+}
+
 VOID _r_theme_setwindowframe (
 	_In_ HWND hwnd,
 	_In_ BOOLEAN is_enable
 )
 {
+#ifndef DWMWA_SYSTEMBACKDROP_TYPE
+#define DWMWA_SYSTEMBACKDROP_TYPE 38
+#endif
+#ifndef DWMSBT_NONE
+#define DWMSBT_NONE 1
+#endif
+#ifndef DWMSBT_MAINWINDOW
+#define DWMSBT_MAINWINDOW 2
+#endif
+#ifndef DWMWCP_DONOTROUND
+#define DWMWCP_DONOTROUND 1
+#endif
+#ifndef DWMWCP_ROUND
+#define DWMWCP_ROUND 2
+#endif
+
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
 	{
 		if (FAILED (DwmSetWindowAttribute (hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &(BOOL){ is_enable }, sizeof (BOOL))))
@@ -5004,17 +5110,24 @@ VOID _r_theme_setwindowframe (
 
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_11))
 	{
+		BOOLEAN use_custom = _r_theme_usecustomcolors (is_enable);
+
 		if (_r_config_getboolean (L"IsWindowBorderEnabled", TRUE))
-			DwmSetWindowAttribute (hwnd, DWMWA_BORDER_COLOR, &(COLORREF){ is_enable ? WND_BORDER_CLR : DWMWA_COLOR_DEFAULT}, sizeof (COLORREF));
+			DwmSetWindowAttribute (hwnd, DWMWA_BORDER_COLOR, &(COLORREF){ use_custom ? _r_theme_getbordercolor () : DWMWA_COLOR_DEFAULT}, sizeof (COLORREF));
 
-		DwmSetWindowAttribute (hwnd, DWMWA_CAPTION_COLOR, &(COLORREF){ is_enable ? WND_BACKGROUND_CLR : DWMWA_COLOR_DEFAULT}, sizeof (COLORREF));
+		DwmSetWindowAttribute (hwnd, DWMWA_CAPTION_COLOR, &(COLORREF){ use_custom ? _r_theme_getbgcolor () : DWMWA_COLOR_DEFAULT}, sizeof (COLORREF));
 
-		if (_r_sys_isosversiongreaterorequal (WINDOWS_11) && !_r_config_getboolean (L"IsWindowCornerRound", FALSE))
-			DwmSetWindowAttribute (hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &(DWM_WINDOW_CORNER_PREFERENCE){ DWMWCP_DONOTROUND }, sizeof (DWM_WINDOW_CORNER_PREFERENCE));
+		// Fluent default: rounded corners (opt out via IsWindowCornerRound=FALSE)
+		DwmSetWindowAttribute (
+			hwnd,
+			DWMWA_WINDOW_CORNER_PREFERENCE,
+			&(DWM_WINDOW_CORNER_PREFERENCE){ _r_config_getboolean (L"IsWindowCornerRound", TRUE) ? DWMWCP_ROUND : DWMWCP_DONOTROUND },
+			sizeof (DWM_WINDOW_CORNER_PREFERENCE)
+			);
 	}
 
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_11_22H2))
-		DwmSetWindowAttribute (hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &(ULONG){ DWMSBT_NONE }, sizeof (ULONG));
+		DwmSetWindowAttribute (hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &(ULONG){ DWMSBT_MAINWINDOW }, sizeof (ULONG));
 }
 
 VOID _r_theme_comboboxrender (
@@ -5047,13 +5160,13 @@ VOID _r_theme_comboboxrender (
 	SetRect (&rect, 0, 0, client_rect->right - client_rect->left, client_rect->bottom - client_rect->top);
 
 	SetBkMode (hdc_buffer, TRANSPARENT);
-	SetTextColor (hdc_buffer, WND_TEXT_CLR);
+	SetTextColor (hdc_buffer, _r_theme_gettextcolor ());
 
 	SelectObject (hdc_buffer, (HGDIOBJ)CallWindowProcW (wnd_proc, hwnd, WM_GETFONT, 0, 0));
 
-	_r_dc_fillrect (hdc_buffer, client_rect, WND_BACKGROUND2_CLR);
+	_r_dc_fillrect (hdc_buffer, client_rect, _r_theme_getbg2color ());
 
-	_r_dc_framerect (hdc_buffer, client_rect, PtInRect (client_rect, context->pt) || GetFocus () == hwnd ? WND_HOT_CLR : WND_HIGHLIGHT_CLR);
+	_r_dc_framerect (hdc_buffer, client_rect, PtInRect (client_rect, context->pt) || GetFocus () == hwnd ? _r_theme_gethotcolor () : _r_theme_gethighlightcolor ());
 
 	if (context->htheme)
 	{
@@ -5085,7 +5198,7 @@ VOID _r_theme_comboboxrender (
 		rect.left += 6;
 		rect.right -= 14;
 
-		_r_dc_drawtext (context->htheme, hdc_buffer, &string->sr, &rect, CP_DROPDOWNITEM, CBXSR_NORMAL, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS, WND_TEXT_CLR);
+		_r_dc_drawtext (context->htheme, hdc_buffer, &string->sr, &rect, CP_DROPDOWNITEM, CBXSR_NORMAL, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS, _r_theme_gettextcolor ());
 
 		_r_obj_dereference (string);
 	}
@@ -5253,12 +5366,12 @@ LRESULT CALLBACK _r_theme_edit_subclass (
 
 				InflateRect (&inner, -1, -1);
 
-				_r_dc_framerect (hdc, &inner, WND_BACKGROUND_CLR);
+				_r_dc_framerect (hdc, &inner, _r_theme_getbgcolor ());
 
 				GetCursorPos (&pt);
 				ScreenToClient (hwnd, &pt);
 
-				clr = ((context->is_mouseactive && PtInRect (&rect, pt)) || GetFocus () == hwnd) ? WND_HOT_CLR : WND_BACKGROUND2_CLR;
+				clr = ((context->is_mouseactive && PtInRect (&rect, pt)) || GetFocus () == hwnd) ? _r_theme_gethotcolor () : _r_theme_getbg2color ();
 
 				_r_dc_framerect (hdc, &rect, clr);
 
@@ -5333,11 +5446,11 @@ LRESULT CALLBACK _r_theme_edit_subclass (
 
 				SetBkMode (buffer_dc, TRANSPARENT);
 
-				if (_r_theme_isenabled ())
+				if (_r_theme_usecustomcolors (_r_theme_isenabled ()))
 				{
-					SetTextColor (buffer_dc, RGB (170, 170, 170));
+					SetTextColor (buffer_dc, _r_theme_getgraytextcolor ());
 
-					_r_dc_fillrect (buffer_dc, &rect, WND_BACKGROUND2_CLR);
+					_r_dc_fillrect (buffer_dc, &rect, _r_theme_getbg2color ());
 				}
 				else
 				{
@@ -5474,7 +5587,7 @@ VOID _r_theme_drawgroupbox (
 		ExcludeClipRect (ps->hdc, rc_content.left, rc_content.top, rc_content.right, rc_content.bottom);
 	}
 
-	_r_dc_framerect (ps->hdc, &rc_background, WND_BACKGROUND2_CLR);
+	_r_dc_framerect (ps->hdc, &rc_background, _r_theme_getbg2color ());
 
 	SelectClipRgn (ps->hdc, NULL);
 
@@ -5486,7 +5599,7 @@ VOID _r_theme_drawgroupbox (
 	rc_text.right -= 2;
 	rc_text.left += 2;
 
-	_r_dc_drawtext (htheme, ps->hdc, &string->sr, &rc_text, BP_GROUPBOX, state_id, flags, is_disabled ? WND_GRAYTEXT_CLR : WND_TEXT_CLR);
+	_r_dc_drawtext (htheme, ps->hdc, &string->sr, &rc_text, BP_GROUPBOX, state_id, flags, is_disabled ? _r_theme_getgraytextcolor () : _r_theme_gettextcolor ());
 
 	_r_obj_dereference (string);
 }
@@ -5568,11 +5681,11 @@ VOID _r_theme_headercontrol (
 
 	SetBkMode (hdc, TRANSPARENT);
 
-	SetTextColor (hdc, WND_TEXT_CLR);
+	SetTextColor (hdc, _r_theme_gettextcolor ());
 
 	_r_dc_fixfont (hdc, hwnd, 0);
 
-	_r_dc_fillrect (hdc, rect, WND_BACKGROUND_CLR);
+	_r_dc_fillrect (hdc, rect, _r_theme_getbgcolor ());
 
 	count = (INT)CallWindowProcW (context->wnd_proc, hwnd, HDM_GETITEMCOUNT, 0, 0);
 
@@ -5585,11 +5698,11 @@ VOID _r_theme_headercontrol (
 
 		if (PtInRect (&head_rect, context->pt))
 		{
-			_r_dc_fillrect (hdc, &head_rect, WND_HOT_CLR);
+			_r_dc_fillrect (hdc, &head_rect, _r_theme_gethotcolor ());
 		}
 		else
 		{
-			_r_dc_fillrect (hdc, &head_rect, WND_BACKGROUND_CLR);
+			_r_dc_fillrect (hdc, &head_rect, _r_theme_getbgcolor ());
 
 			if (context->htheme)
 			{
@@ -5811,8 +5924,8 @@ LRESULT CALLBACK _r_theme_rebar_subclass (
 			HDC hdc = (HDC)wparam;
 
 			SetBkMode (hdc, TRANSPARENT);
-			SetTextColor (hdc, WND_TEXT_CLR);
-			SetDCBrushColor (hdc, WND_BACKGROUND2_CLR);
+			SetTextColor (hdc, _r_theme_gettextcolor ());
+			SetDCBrushColor (hdc, _r_theme_getbg2color ());
 
 			return (LRESULT)GetStockObject (DC_BRUSH);
 		}
@@ -5822,8 +5935,8 @@ LRESULT CALLBACK _r_theme_rebar_subclass (
 			HDC hdc = (HDC)wparam;
 
 			SetBkMode (hdc, TRANSPARENT);
-			SetTextColor (hdc, WND_TEXT_CLR);
-			SetBkColor (hdc, WND_BACKGROUND_CLR);
+			SetTextColor (hdc, _r_theme_gettextcolor ());
+			SetBkColor (hdc, _r_theme_getbgcolor ());
 
 			return (LRESULT)app_global.theme.bg_brush;
 		}
@@ -5894,7 +6007,7 @@ LRESULT CALLBACK _r_theme_statusbar_subclass (
 
 				GetClientRect (hwnd, &rect);
 
-				_r_dc_fillrect (hdc, &ps.rcPaint, WND_BACKGROUND_CLR);
+				_r_dc_fillrect (hdc, &ps.rcPaint, _r_theme_getbgcolor ());
 
 				parts = _r_status_getparts (hwnd, 0);
 
@@ -5911,7 +6024,7 @@ LRESULT CALLBACK _r_theme_statusbar_subclass (
 						continue;
 
 					SetBkMode (hdc, TRANSPARENT);
-					SetTextColor (hdc, WND_TEXT_CLR);
+					SetTextColor (hdc, _r_theme_gettextcolor ());
 
 					part.left += borders[2];
 					part.right -= borders[1];
@@ -5920,7 +6033,7 @@ LRESULT CALLBACK _r_theme_statusbar_subclass (
 
 					if (string)
 					{
-						_r_dc_drawtext (context->htheme, hdc, &string->sr, &part, SP_PANE, 0, DT_SINGLELINE | DT_VCENTER | DT_LEFT, WND_TEXT_CLR);
+						_r_dc_drawtext (context->htheme, hdc, &string->sr, &part, SP_PANE, 0, DT_SINGLELINE | DT_VCENTER | DT_LEFT, _r_theme_gettextcolor ());
 
 						_r_obj_dereference (string);
 					}
@@ -5929,7 +6042,7 @@ LRESULT CALLBACK _r_theme_statusbar_subclass (
 					{
 						SetRect (&divider, part.right - borders[1], part.top, part.right, part.bottom);
 
-						_r_dc_fillrect (hdc, &divider, WND_BACKGROUND2_CLR);
+						_r_dc_fillrect (hdc, &divider, _r_theme_getbg2color ());
 					}
 				}
 
@@ -5979,11 +6092,11 @@ VOID _r_theme_rendertabcontrol (
 	BOOLEAN is_hot;
 
 	SetBkMode (hdc, TRANSPARENT);
-	SetTextColor (hdc, WND_TEXT_CLR);
+	SetTextColor (hdc, _r_theme_gettextcolor ());
 
 	_r_dc_fixfont (hdc, hwnd, 0);
 
-	_r_dc_fillrect (hdc, client_rect, WND_BACKGROUND_CLR);
+	_r_dc_fillrect (hdc, client_rect, _r_theme_getbgcolor ());
 
 	current_item = _r_tab_getcurrentitem (hwnd, 0);
 	count = _r_tab_getitemcount (hwnd, 0);
@@ -5999,11 +6112,11 @@ VOID _r_theme_rendertabcontrol (
 
 		if (is_hot)
 		{
-			_r_dc_fillrect (hdc, &rect, WND_HOT_CLR);
+			_r_dc_fillrect (hdc, &rect, _r_theme_gethotcolor ());
 		}
 		else
 		{
-			_r_dc_fillrect (hdc, &rect, is_selected ? WND_BACKGROUND2_CLR : WND_BACKGROUND_CLR);
+			_r_dc_fillrect (hdc, &rect, is_selected ? _r_theme_getbg2color () : _r_theme_getbgcolor ());
 		}
 
 		string = _r_tab_getitemtext (hwnd, 0, i);
@@ -6023,7 +6136,7 @@ VOID _r_theme_rendertabcontrol (
 
 			frame_rect.bottom = _r_dc_getdpi (6, dpi_value);
 
-			_r_dc_fillrect (hdc, &frame_rect, is_hot ? WND_BACKGROUND_CLR : WND_HOT_CLR);
+			_r_dc_fillrect (hdc, &frame_rect, is_hot ? _r_theme_getbgcolor () : _r_theme_gethotcolor ());
 		}
 	}
 }
@@ -6229,7 +6342,7 @@ VOID _r_theme_rendercheckbox (
 
 	DrawThemeBackground (htheme, hdc, part_id, state_id, &rect_bg, NULL);
 
-	clr_text = style & WS_DISABLED ? WND_GRAYTEXT_CLR : WND_TEXT_CLR;
+	clr_text = style & WS_DISABLED ? _r_theme_getgraytextcolor () : _r_theme_gettextcolor ();
 
 	_r_dc_drawtext (htheme, hdc, &string->sr, &rect_text, part_id, state_id, flags, clr_text);
 
@@ -6445,7 +6558,7 @@ VOID _r_theme_drawsplitglyph (
 		if (hfont)
 		{
 			SetBkMode (hdc, TRANSPARENT);
-			SetTextColor (hdc, WND_TEXT_CLR);
+			SetTextColor (hdc, _r_theme_gettextcolor ());
 
 			old_font = SelectObject (hdc, hfont);
 
@@ -6475,7 +6588,7 @@ LRESULT CALLBACK _r_theme_drawbutton (
 			RECT rect_client = {0};
 			HTHEME htheme;
 			HICON hicon;
-			COLORREF clr = WND_BUTTON_CLR;
+			COLORREF clr = _r_theme_getbuttoncolor ();
 			LONG dpi_value;
 			ULONG flags;
 			INT state_id = PBS_NORMAL;
@@ -6538,11 +6651,11 @@ LRESULT CALLBACK _r_theme_drawbutton (
 
 			if ((draw_info->uItemState & CDIS_SELECTED) == CDIS_SELECTED)
 			{
-				clr = WND_GRAYTEXT_CLR;
+				clr = _r_theme_getgraytextcolor ();
 			}
 			else if ((draw_info->uItemState & CDIS_HOT) == CDIS_HOT)
 			{
-				clr = WND_HOT_CLR;
+				clr = _r_theme_gethotcolor ();
 			}
 
 			_r_dc_fillrect (draw_info->hdc, &draw_info->rc, clr);
@@ -6558,7 +6671,7 @@ LRESULT CALLBACK _r_theme_drawbutton (
 			if (hicon)
 				_r_theme_drawicon (draw_info, string, hicon, &rect_content, dpi_value);
 
-			_r_dc_drawtext (htheme, draw_info->hdc, &string->sr, &rect_content, BP_PUSHBUTTON, state_id, flags, (style & WS_DISABLED) ? WND_GRAYTEXT_CLR : WND_TEXT_CLR);
+			_r_dc_drawtext (htheme, draw_info->hdc, &string->sr, &rect_content, BP_PUSHBUTTON, state_id, flags, (style & WS_DISABLED) ? _r_theme_getgraytextcolor () : _r_theme_gettextcolor ());
 
 			if ((draw_info->uItemState & CDIS_FOCUS) == CDIS_FOCUS)
 			{
@@ -6566,7 +6679,7 @@ LRESULT CALLBACK _r_theme_drawbutton (
 			}
 			else
 			{
-				_r_dc_framerect (draw_info->hdc, &draw_info->rc, WND_BACKGROUND2_CLR);
+				_r_dc_framerect (draw_info->hdc, &draw_info->rc, _r_theme_getbg2color ());
 			}
 
 			_r_obj_dereference (string);
@@ -6677,9 +6790,9 @@ LRESULT CALLBACK _r_theme_drawrebar (
 	{
 		case CDDS_PREPAINT:
 		{
-			SetTextColor (draw_info->hdc, WND_TEXT_CLR);
+			SetTextColor (draw_info->hdc, _r_theme_gettextcolor ());
 
-			_r_dc_fillrect (draw_info->hdc, &draw_info->rc, WND_BACKGROUND_CLR);
+			_r_dc_fillrect (draw_info->hdc, &draw_info->rc, _r_theme_getbgcolor ());
 
 			return CDRF_NOTIFYITEMDRAW;
 		}
@@ -6706,9 +6819,9 @@ LRESULT CALLBACK _r_theme_drawtoolbar (
 
 		case CDDS_ITEMPREPAINT:
 		{
-			draw_info->clrText = WND_TEXT_CLR;
-			draw_info->clrBtnHighlight = WND_HIGHLIGHT_CLR;
-			draw_info->clrHighlightHotTrack = WND_HOT_CLR;
+			draw_info->clrText = _r_theme_gettextcolor ();
+			draw_info->clrBtnHighlight = _r_theme_gethighlightcolor ();
+			draw_info->clrHighlightHotTrack = _r_theme_gethotcolor ();
 
 			draw_info->nStringBkMode = TRANSPARENT;
 			draw_info->nHLStringBkMode = TRANSPARENT;
@@ -6744,12 +6857,12 @@ LRESULT CALLBACK _r_theme_drawlistviewgroup (
 
 			if (_r_wnd_sendmessage (draw_info->nmcd.hdr.hwndFrom, 0, LVM_GETGROUPINFO, draw_info->nmcd.dwItemSpec, (LPARAM)&lvg) != INT_ERROR)
 			{
-				SetTextColor (draw_info->nmcd.hdc, WND_TEXT_CLR);
+				SetTextColor (draw_info->nmcd.hdc, _r_theme_gettextcolor ());
 
 				draw_info->rcText.top += _r_dc_getdpi (2, dpi_value);
 				draw_info->rcText.bottom -= _r_dc_getdpi (2, dpi_value);
 
-				_r_dc_fillrect (draw_info->nmcd.hdc, &draw_info->rcText, WND_BUTTON_CLR);
+				_r_dc_fillrect (draw_info->nmcd.hdc, &draw_info->rcText, _r_theme_getbuttoncolor ());
 
 				draw_info->rcText.top -= _r_dc_getdpi (2, dpi_value);
 				draw_info->rcText.bottom += _r_dc_getdpi (2, dpi_value);
@@ -6800,7 +6913,7 @@ LRESULT CALLBACK _r_theme_subclassproc (
 	if (!wnd_proc)
 		return FALSE;
 
-	if (!_r_theme_isenabled ())
+	if (!_r_theme_usecustomcolors (_r_theme_isenabled ()))
 		return CallWindowProcW (wnd_proc, hwnd, msg, wparam, lparam);
 
 	switch (msg)
@@ -6833,7 +6946,7 @@ LRESULT CALLBACK _r_theme_subclassproc (
 
 			mbi.rcBar.top -= 1;
 
-			_r_dc_fillrect (menu_item->hdc, &mbi.rcBar, WND_BACKGROUND_CLR);
+			_r_dc_fillrect (menu_item->hdc, &mbi.rcBar, _r_theme_getbgcolor ());
 
 			return TRUE;
 		}
@@ -6844,8 +6957,8 @@ LRESULT CALLBACK _r_theme_subclassproc (
 			PR_STRING string;
 			HTHEME htheme;
 			ULONG flags = DT_CENTER | DT_SINGLELINE | DT_VCENTER;
-			COLORREF bg_clr = WND_BACKGROUND_CLR;
-			COLORREF text_clr = WND_TEXT_CLR;
+			COLORREF bg_clr = _r_theme_getbgcolor ();
+			COLORREF text_clr = _r_theme_gettextcolor ();
 			INT state_id = MBI_NORMAL; // normal display (default)
 
 			menu_item = (LPUAHDRAWMENUITEM)lparam;
@@ -6859,14 +6972,14 @@ LRESULT CALLBACK _r_theme_subclassproc (
 			{
 				state_id = MBI_HOT; // hot tracking
 
-				bg_clr = WND_HIGHLIGHT_CLR;
+				bg_clr = _r_theme_gethighlightcolor ();
 			}
 
 			if (menu_item->dis.itemState & ODS_SELECTED)
 			{
 				state_id = MBI_PUSHED; // clicked
 
-				bg_clr = WND_HIGHLIGHT_CLR;
+				bg_clr = _r_theme_gethighlightcolor ();
 			}
 
 			if ((menu_item->dis.itemState & ODS_GRAYED) || (menu_item->dis.itemState & ODS_DISABLED))
@@ -6889,7 +7002,7 @@ LRESULT CALLBACK _r_theme_subclassproc (
 				}
 
 				if (state_id == MBI_DISABLED || state_id == MBI_DISABLEDHOT || state_id == MBI_DISABLEDPUSHED)
-					text_clr = WND_GRAYTEXT_CLR;
+					text_clr = _r_theme_getgraytextcolor ();
 
 				_r_dc_drawtext (htheme, menu_item->um.hdc, &string->sr, &menu_item->dis.rcItem, MENU_BARITEM, state_id, flags, text_clr);
 
@@ -6987,8 +7100,8 @@ LRESULT CALLBACK _r_theme_subclassproc (
 			HDC hdc = (HDC)wparam;
 
 			SetBkMode (hdc, TRANSPARENT);
-			SetTextColor (hdc, WND_TEXT_CLR);
-			SetDCBrushColor (hdc, WND_BACKGROUND2_CLR);
+			SetTextColor (hdc, _r_theme_gettextcolor ());
+			SetDCBrushColor (hdc, _r_theme_getbg2color ());
 
 			return (LRESULT)GetStockObject (DC_BRUSH);
 		}
@@ -7001,8 +7114,8 @@ LRESULT CALLBACK _r_theme_subclassproc (
 			HDC hdc = (HDC)wparam;
 
 			SetBkMode (hdc, TRANSPARENT);
-			SetTextColor (hdc, WND_TEXT_CLR);
-			SetBkColor (hdc, WND_BACKGROUND_CLR);
+			SetTextColor (hdc, _r_theme_gettextcolor ());
+			SetBkColor (hdc, _r_theme_getbgcolor ());
 
 			return (LRESULT)app_global.theme.bg_brush;
 		}
@@ -7037,7 +7150,7 @@ LRESULT CALLBACK _r_theme_subclassproc (
 
 				if (hdc)
 				{
-					_r_dc_fillrect (hdc, &line, WND_BACKGROUND_CLR);
+					_r_dc_fillrect (hdc, &line, _r_theme_getbgcolor ());
 
 					ReleaseDC (hwnd, hdc);
 				}

@@ -266,6 +266,29 @@ VOID _app_config_apply (
 			break;
 		}
 
+		case IDM_THEME_SYSTEM:
+		case IDM_THEME_LIGHT:
+		case IDM_THEME_DARK:
+		case IDM_THEME_CYBER:
+		case IDM_THEME_ALBUQUERQUE:
+		{
+			break;
+		}
+
+		case IDM_GAMEMODE_CHK:
+		case IDM_TRAY_GAMEMODE_CHK:
+		{
+			new_val = !_r_config_getboolean (L"IsGameModeEnabled", FALSE, NULL);
+			break;
+		}
+
+		case IDM_ALLOWALL_CHK:
+		case IDM_TRAY_ALLOWALL_CHK:
+		{
+			new_val = !_r_config_getboolean (L"IsTempAllowAll", FALSE, NULL);
+			break;
+		}
+
 		case IDM_PROFILETYPE_PLAIN:
 		case IDM_PROFILETYPE_COMPRESSED:
 		case IDM_PROFILETYPE_ENCRYPTED:
@@ -608,10 +631,69 @@ VOID _app_config_apply (
 
 		case IDM_USEDARKTHEME_CHK:
 		{
-			_r_menu_checkitem (hmenu, IDM_USEDARKTHEME_CHK, 0, MF_BYCOMMAND, new_val);
+			_app_theme_setmode (hwnd, new_val ? THEME_MODE_DARK : THEME_MODE_LIGHT);
 
-			_r_theme_enable (hwnd, new_val);
+			_r_menu_checkitem (hmenu, IDM_THEME_SYSTEM, IDM_THEME_ALBUQUERQUE, MF_BYCOMMAND, IDM_THEME_SYSTEM + _app_theme_getmode ());
 
+			break;
+		}
+
+		case IDM_THEME_SYSTEM:
+		{
+			_app_theme_setmode (hwnd, THEME_MODE_SYSTEM);
+
+			_r_menu_checkitem (hmenu, IDM_THEME_SYSTEM, IDM_THEME_ALBUQUERQUE, MF_BYCOMMAND, IDM_THEME_SYSTEM);
+
+			break;
+		}
+
+		case IDM_THEME_LIGHT:
+		{
+			_app_theme_setmode (hwnd, THEME_MODE_LIGHT);
+
+			_r_menu_checkitem (hmenu, IDM_THEME_SYSTEM, IDM_THEME_ALBUQUERQUE, MF_BYCOMMAND, IDM_THEME_LIGHT);
+
+			break;
+		}
+
+		case IDM_THEME_DARK:
+		{
+			_app_theme_setmode (hwnd, THEME_MODE_DARK);
+
+			_r_menu_checkitem (hmenu, IDM_THEME_SYSTEM, IDM_THEME_ALBUQUERQUE, MF_BYCOMMAND, IDM_THEME_DARK);
+
+			break;
+		}
+
+		case IDM_THEME_CYBER:
+		{
+			_app_theme_setmode (hwnd, THEME_MODE_CYBER);
+
+			_r_menu_checkitem (hmenu, IDM_THEME_SYSTEM, IDM_THEME_ALBUQUERQUE, MF_BYCOMMAND, IDM_THEME_CYBER);
+
+			break;
+		}
+
+		case IDM_THEME_ALBUQUERQUE:
+		{
+			_app_theme_setmode (hwnd, THEME_MODE_ALBUQUERQUE);
+
+			_r_menu_checkitem (hmenu, IDM_THEME_SYSTEM, IDM_THEME_ALBUQUERQUE, MF_BYCOMMAND, IDM_THEME_ALBUQUERQUE);
+
+			break;
+		}
+
+		case IDM_GAMEMODE_CHK:
+		case IDM_TRAY_GAMEMODE_CHK:
+		{
+			_app_gamemode_set (hwnd, new_val);
+			break;
+		}
+
+		case IDM_ALLOWALL_CHK:
+		case IDM_TRAY_ALLOWALL_CHK:
+		{
+			_app_allowall_set (hwnd, new_val);
 			break;
 		}
 	}
@@ -642,6 +724,15 @@ VOID _app_config_apply (
 		case IDM_USEHASHES_CHK:
 		case IDM_USEAPPMONITOR_CHK:
 		case IDM_USEDARKTHEME_CHK:
+		case IDM_THEME_SYSTEM:
+		case IDM_THEME_LIGHT:
+		case IDM_THEME_DARK:
+		case IDM_THEME_CYBER:
+		case IDM_THEME_ALBUQUERQUE:
+		case IDM_GAMEMODE_CHK:
+		case IDM_TRAY_GAMEMODE_CHK:
+		case IDM_ALLOWALL_CHK:
+		case IDM_TRAY_ALLOWALL_CHK:
 		case IDC_FILTERHOTKEY_CHK:
 		case IDM_FILTERHOTKEY_CHK:
 		{
@@ -752,6 +843,8 @@ INT_PTR CALLBACK SettingsProc (
 					_r_button_setcheck (hwnd, IDC_CONFIRMALLOW_CHK, _r_config_getboolean (L"ConfirmAllow", TRUE, NULL));
 					_r_button_setcheck (hwnd, IDC_TRAYICONSINGLECLICK_CHK, _r_config_getboolean (L"IsTrayIconSingleClick", TRUE, NULL));
 					_r_button_setcheck (hwnd, IDC_FILTERHOTKEY_CHK, _r_config_getboolean (L"IsFilterToggleHotkey", TRUE, NULL));
+					_r_button_setcheck (hwnd, IDC_WINDOWCORNERROUND_CHK, _r_config_getboolean (L"IsWindowCornerRound", TRUE, NULL));
+					_r_button_setcheck (hwnd, IDC_WINDOWBORDER_CHK, _r_config_getboolean (L"IsWindowBorderEnabled", TRUE, NULL));
 
 					break;
 				}
@@ -882,6 +975,7 @@ INT_PTR CALLBACK SettingsProc (
 			_r_ctrl_setstringformat (hwnd, IDC_TITLE_SECURITY, L"%s:", _r_locale_getstring (IDS_TITLE_SECURITY));
 			_r_ctrl_setstringformat (hwnd, IDC_TITLE_CONFIRMATIONS, L"%s:", _r_locale_getstring (IDS_TITLE_CONFIRMATIONS));
 			_r_ctrl_setstringformat (hwnd, IDC_TITLE_TRAY, L"%s:", _r_locale_getstring (IDS_TITLE_TRAY));
+			_r_ctrl_setstringformat (hwnd, IDC_TITLE_APPEARANCE, L"%s:", _r_locale_getstring (IDS_TITLE_APPEARANCE));
 			_r_ctrl_setstringformat (hwnd, IDC_TITLE_HIGHLIGHTING, L"%s:", _r_locale_getstring (IDS_TITLE_HIGHLIGHTING));
 			_r_ctrl_setstringformat (hwnd, IDC_TITLE_LOGVIEWER, L"%s:", _r_locale_getstring (IDS_LOGVIEWER_HINT));
 			_r_ctrl_setstringformat (hwnd, IDC_TITLE_INTERFACE, L"%s:", _r_locale_getstring (IDS_TITLE_INTERFACE));
@@ -957,6 +1051,8 @@ INT_PTR CALLBACK SettingsProc (
 					_r_ctrl_setstring (hwnd, IDC_CONFIRMALLOW_CHK, _r_locale_getstring (IDS_CONFIRMALLOW_CHK));
 					_r_ctrl_setstring (hwnd, IDC_TRAYICONSINGLECLICK_CHK, _r_locale_getstring (IDS_TRAYICONSINGLECLICK_CHK));
 					_r_ctrl_setstring (hwnd, IDC_FILTERHOTKEY_CHK, _r_locale_getstring (IDS_FILTERHOTKEY_CHK));
+					_r_ctrl_setstring (hwnd, IDC_WINDOWCORNERROUND_CHK, _r_locale_getstring (IDS_WINDOWCORNERROUND_CHK));
+					_r_ctrl_setstring (hwnd, IDC_WINDOWBORDER_CHK, _r_locale_getstring (IDS_WINDOWBORDER_CHK));
 
 					break;
 				}
@@ -1276,6 +1372,34 @@ INT_PTR CALLBACK SettingsProc (
 				case IDC_TRAYICONSINGLECLICK_CHK:
 				{
 					_r_config_setboolean (L"IsTrayIconSingleClick", _r_button_ischecked (hwnd, ctrl_id), NULL);
+					break;
+				}
+
+				case IDC_WINDOWCORNERROUND_CHK:
+				{
+					HWND hmain;
+
+					_r_config_setboolean (L"IsWindowCornerRound", _r_button_ischecked (hwnd, ctrl_id), NULL);
+
+					hmain = _r_app_gethwnd ();
+
+					if (hmain)
+						_app_theme_apply (hmain);
+
+					break;
+				}
+
+				case IDC_WINDOWBORDER_CHK:
+				{
+					HWND hmain;
+
+					_r_config_setboolean (L"IsWindowBorderEnabled", _r_button_ischecked (hwnd, ctrl_id), NULL);
+
+					hmain = _r_app_gethwnd ();
+
+					if (hmain)
+						_app_theme_apply (hmain);
+
 					break;
 				}
 
@@ -1821,6 +1945,13 @@ VOID _app_tabs_init (
 			_r_listview_addgroup (hwnd, tab_context->listview_id, 2, L"", 0, LVGS_COLLAPSIBLE, LVGS_COLLAPSIBLE);
 			_r_listview_addgroup (hwnd, tab_context->listview_id, 3, L"", 0, LVGS_COLLAPSIBLE, LVGS_COLLAPSIBLE);
 			_r_listview_addgroup (hwnd, tab_context->listview_id, 4, L"", 0, LVGS_COLLAPSIBLE, LVGS_COLLAPSIBLE);
+
+			if (tab_context->listview_id >= IDC_APPS_PROFILE && tab_context->listview_id <= IDC_APPS_UWP)
+			{
+				_r_listview_addgroup (hwnd, tab_context->listview_id, 5, L"", 0, LVGS_COLLAPSIBLE, LVGS_COLLAPSIBLE);
+				_r_listview_addgroup (hwnd, tab_context->listview_id, 6, L"", 0, LVGS_COLLAPSIBLE, LVGS_COLLAPSIBLE);
+				_r_listview_addgroup (hwnd, tab_context->listview_id, 7, L"", 0, LVGS_COLLAPSIBLE, LVGS_COLLAPSIBLE);
+			}
 		}
 		else if (tab_context->listview_id == IDC_NETWORK)
 		{
@@ -1964,6 +2095,7 @@ VOID _app_initialize (
 
 	// initialize global filters array object
 	filter_ids = _r_obj_createarray (sizeof (GUID), 0x10, NULL);
+	config.allowall_guids = _r_obj_createarray (sizeof (GUID), 0x08, NULL);
 
 	// initialize apps table
 	apps_table = _r_obj_createhashtablepointer (0x20);
@@ -2098,11 +2230,18 @@ INT_PTR CALLBACK DlgProc (
 		case RM_INITIALIZE:
 		{
 			_app_message_initialize (hwnd);
+			_app_theme_apply (hwnd);
+			_app_gamemode_updateui (hwnd);
+
+			if (_r_config_getboolean (L"IsTempAllowAll", FALSE, NULL) && _wfp_isfiltersinstalled ())
+				_wfp_allowall_set (TRUE);
+
 			break;
 		}
 
 		case RM_UNINITIALIZE:
 		{
+			_wfp_allowall_set (FALSE);
 			_app_message_uninitialize (hwnd);
 			break;
 		}
@@ -2826,6 +2965,12 @@ INT_PTR CALLBACK DlgProc (
 		{
 			BOOLEAN is_filtersinstalled;
 
+			if (wparam == GAME_MODE_HOTKEY_ID)
+			{
+				_app_gamemode_set (hwnd, !_r_config_getboolean (L"IsGameModeEnabled", FALSE, NULL));
+				break;
+			}
+
 			if (wparam != FILTER_TOGGLE_HOTKEY_ID)
 				break;
 
@@ -2835,6 +2980,21 @@ INT_PTR CALLBACK DlgProc (
 			is_filtersinstalled = !_wfp_isfiltersinstalled ();
 
 			_app_changefilters (hwnd, is_filtersinstalled, TRUE);
+
+			break;
+		}
+
+		case WM_SETTINGCHANGE:
+		{
+			R_STRINGREF sr;
+
+			if (!lparam)
+				break;
+
+			_r_obj_initializestringref (&sr, (LPWSTR)lparam);
+
+			if (_r_str_isequal2 (&sr, L"ImmersiveColorSet", TRUE) && _app_theme_getmode () == THEME_MODE_SYSTEM)
+				_app_theme_apply (hwnd);
 
 			break;
 		}
@@ -3235,6 +3395,13 @@ INT_PTR CALLBACK DlgProc (
 				case IDM_USEHASHES_CHK:
 				case IDM_USEAPPMONITOR_CHK:
 				case IDM_USEDARKTHEME_CHK:
+				case IDM_THEME_SYSTEM:
+				case IDM_THEME_LIGHT:
+				case IDM_THEME_DARK:
+				case IDM_THEME_CYBER:
+				case IDM_THEME_ALBUQUERQUE:
+				case IDM_GAMEMODE_CHK:
+				case IDM_ALLOWALL_CHK:
 				case IDM_FILTERHOTKEY_CHK:
 				{
 					_app_config_apply (hwnd, NULL, ctrl_id);
@@ -3325,6 +3492,13 @@ INT_PTR CALLBACK DlgProc (
 					if (hnotify)
 						_app_notify_refresh (hnotify);
 
+					break;
+				}
+
+				case IDM_TRAY_GAMEMODE_CHK:
+				case IDM_TRAY_ALLOWALL_CHK:
+				{
+					_app_config_apply (hwnd, NULL, ctrl_id);
 					break;
 				}
 
@@ -3731,7 +3905,12 @@ BOOLEAN NTAPI _app_parseargs (
 				_app_profile_load (NULL, NULL);
 
 				if (_wfp_initialize (NULL, hengine))
+				{
 					_wfp_installfilters (hengine);
+
+					if (_r_config_getboolean (L"IsTempAllowAll", FALSE, NULL))
+						_wfp_allowall_set (TRUE);
+				}
 
 				_wfp_uninitialize (hengine, FALSE);
 			}
@@ -3745,8 +3924,10 @@ BOOLEAN NTAPI _app_parseargs (
 			// https://github.com/henrypp/simplewall/issues/1698#issuecomment-4532518363
 			if (_wfp_isfiltersinstalled () && _app_installmessage (NULL, FALSE))
 			{
+				_wfp_allowall_set (FALSE);
 				_wfp_destroyfilters (hengine);
 				_wfp_uninitialize (hengine, TRUE);
+				config.is_filterstemporary = FALSE;
 			}
 
 			return TRUE;
